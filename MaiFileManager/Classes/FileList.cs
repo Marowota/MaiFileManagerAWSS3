@@ -9,6 +9,7 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using MaiFileManager.Classes;
 using CommunityToolkit.Maui.Core.Primitives;
+using CommunityToolkit.Maui.Core.Extensions;
 
 namespace MaiFileManager.Classes
 {
@@ -151,119 +152,122 @@ namespace MaiFileManager.Classes
             return true;
         }
         #endregion
-        internal int SortFileComparisonFolderToFile(FileSystemInfo x, FileSystemInfo y)
+        internal int SortFileComparisonFolderToFile(FileSystemInfoWithIcon x, FileSystemInfoWithIcon y)
         {
-            return (x.GetType() == y.GetType() ? 0 : (x.GetType() == typeof(DirectoryInfo) ? -1 : 1));
+            return (x.fileInfo.GetType() == y.fileInfo.GetType() ? 0 : (x.fileInfo.GetType() == typeof(DirectoryInfo) ? -1 : 1));
         }
-        internal int SortFileComparisonNameAZ(FileSystemInfo x, FileSystemInfo y)
+        internal int SortFileComparisonNameAZ(FileSystemInfoWithIcon x, FileSystemInfoWithIcon y)
         {
             int tmp = SortFileComparisonFolderToFile(x, y);
             if (tmp != 0) return tmp;
 
-            return string.Compare(x.Name, y.Name, StringComparison.OrdinalIgnoreCase);
+            return string.Compare(x.fileInfo.Name, y.fileInfo.Name, StringComparison.OrdinalIgnoreCase);
         }
 
-        internal int SortFileComparisonNameZA(FileSystemInfo x, FileSystemInfo y)
+        internal int SortFileComparisonNameZA(FileSystemInfoWithIcon x, FileSystemInfoWithIcon y)
         {
             int tmp = SortFileComparisonFolderToFile(x, y);
             if (tmp != 0) return tmp;
 
-            return string.Compare(y.Name, x.Name, StringComparison.OrdinalIgnoreCase);
+            return string.Compare(y.fileInfo.Name, x.fileInfo.Name, StringComparison.OrdinalIgnoreCase);
         }
 
-        internal int SortFileComparisonSizeSL(FileSystemInfo x, FileSystemInfo y)
+        internal int SortFileComparisonSizeSL(FileSystemInfoWithIcon x, FileSystemInfoWithIcon y)
         {
             int tmp = SortFileComparisonFolderToFile(x, y);
             if (tmp != 0) return tmp;
 
-            long sizeX = 0, sizeY = 0;
-            if (x.GetType() == typeof(FileInfo))
+            double sizeX = 0, sizeY = 0;
+            if (x.fileInfo.GetType() == typeof(FileInfo))
             {
-                sizeX = (x as FileInfo).Length;
+                sizeX = x.dualFileSize;
             }
-            if (y.GetType() == typeof(FileInfo))
+            if (y.fileInfo.GetType() == typeof(FileInfo))
             {
-                sizeY = (y as FileInfo).Length;
+                sizeY = y.dualFileSize;
             }
             return (sizeX < sizeY ? -1 : (sizeX > sizeY ? 1 : 0));
         }
-        internal int SortFileComparisonSizeLS(FileSystemInfo x, FileSystemInfo y)
+        internal int SortFileComparisonSizeLS(FileSystemInfoWithIcon x, FileSystemInfoWithIcon y)
         {
             int tmp = SortFileComparisonFolderToFile(x, y);
             if (tmp != 0) return tmp;
 
-            long sizeX = 0, sizeY = 0;
-            if (x.GetType() == typeof(FileInfo))
+            double sizeX = 0, sizeY = 0;
+            if (x.fileInfo.GetType() == typeof(FileInfo))
             {
-                sizeX = (x as FileInfo).Length;
+                sizeX = x.dualFileSize;
             }
-            if (y.GetType() == typeof(FileInfo))
+            if (y.fileInfo.GetType() == typeof(FileInfo))
             {
-                sizeY = (y as FileInfo).Length;
+                sizeY = y.dualFileSize;
             }
             return (sizeX > sizeY ? -1 : (sizeX < sizeY ? 1 : 0));
         }
-        internal int SortFileComparisonTypeAZ(FileSystemInfo x, FileSystemInfo y)
+        internal int SortFileComparisonTypeAZ(FileSystemInfoWithIcon x, FileSystemInfoWithIcon y)
         {
             int tmp = SortFileComparisonFolderToFile(x, y);
             if (tmp != 0) return tmp;
 
-            return string.Compare(x.Extension, y.Extension, StringComparison.OrdinalIgnoreCase);
+            return string.Compare(x.fileInfo.Extension, y.fileInfo.Extension, StringComparison.OrdinalIgnoreCase);
         }
-        internal int SortFileComparisonTypeZA(FileSystemInfo x, FileSystemInfo y)
+        internal int SortFileComparisonTypeZA(FileSystemInfoWithIcon x, FileSystemInfoWithIcon y)
         {
             int tmp = SortFileComparisonFolderToFile(x, y);
             if (tmp != 0) return tmp;
 
-            return string.Compare(y.Extension, x.Extension, StringComparison.OrdinalIgnoreCase);
+            return string.Compare(y.fileInfo.Extension, x.fileInfo.Extension, StringComparison.OrdinalIgnoreCase);
         }
-        internal int SortFileComparisonDateNO(FileSystemInfo x, FileSystemInfo y)
+        internal int SortFileComparisonDateNO(FileSystemInfoWithIcon x, FileSystemInfoWithIcon y)
         {
             int tmp = SortFileComparisonFolderToFile(x, y);
             if (tmp != 0) return tmp;
 
-            return DateTime.Compare(y.LastWriteTime, x.LastWriteTime);
+            return DateTime.Compare(y.dualLastModified, x.dualLastModified);
         }
-        internal int SortFileComparisonDateON(FileSystemInfo x, FileSystemInfo y)
+        internal int SortFileComparisonDateON(FileSystemInfoWithIcon x, FileSystemInfoWithIcon y)
         {
             int tmp = SortFileComparisonFolderToFile(x, y);
             if (tmp != 0) return tmp;
 
-            return DateTime.Compare(x.LastWriteTime, y.LastWriteTime);
+            return DateTime.Compare(x.dualLastModified, y.dualLastModified);
         }
-        internal List<FileSystemInfo> SortFileMode(List<FileSystemInfo> fsi)
+        internal async Task<List<FileSystemInfoWithIcon>> SortFileMode(List<FileSystemInfoWithIcon> fsi)
         {
-            Comparison<FileSystemInfo> compare = new Comparison<FileSystemInfo>(SortFileComparisonNameAZ);
+            return await Task<List<FileSystemInfoWithIcon>>.Run(() => {
 
-            switch (SortMode)
-            {
-                case FileSortMode.NameAZ:
-                    compare = new Comparison<FileSystemInfo>(SortFileComparisonNameAZ);
-                    break;
-                case FileSortMode.NameZA:
-                    compare = new Comparison<FileSystemInfo>(SortFileComparisonNameZA);
-                    break;
-                case FileSortMode.SizeSL:
-                    compare = new Comparison<FileSystemInfo>(SortFileComparisonSizeSL);
-                    break;
-                case FileSortMode.SizeLS:
-                    compare = new Comparison<FileSystemInfo>(SortFileComparisonSizeLS);
-                    break;
-                case FileSortMode.TypeAZ:
-                    compare = new Comparison<FileSystemInfo>(SortFileComparisonTypeAZ);
-                    break;
-                case FileSortMode.TypeZA:
-                    compare = new Comparison<FileSystemInfo>(SortFileComparisonTypeZA);
-                    break;
-                case FileSortMode.DateNO:
-                    compare = new Comparison<FileSystemInfo>(SortFileComparisonDateNO);
-                    break;
-                case FileSortMode.DateON:
-                    compare = new Comparison<FileSystemInfo>(SortFileComparisonDateON);
-                    break;
-            }
-            fsi.Sort(compare);
-            return fsi;
+                Comparison<FileSystemInfoWithIcon> compare = new Comparison<FileSystemInfoWithIcon>(SortFileComparisonNameAZ);
+
+                switch (SortMode)
+                {
+                    case FileSortMode.NameAZ:
+                        compare = new Comparison<FileSystemInfoWithIcon>(SortFileComparisonNameAZ);
+                        break;
+                    case FileSortMode.NameZA:
+                        compare = new Comparison<FileSystemInfoWithIcon>(SortFileComparisonNameZA);
+                        break;
+                    case FileSortMode.SizeSL:
+                        compare = new Comparison<FileSystemInfoWithIcon>(SortFileComparisonSizeSL);
+                        break;
+                    case FileSortMode.SizeLS:
+                        compare = new Comparison<FileSystemInfoWithIcon>(SortFileComparisonSizeLS);
+                        break;
+                    case FileSortMode.TypeAZ:
+                        compare = new Comparison<FileSystemInfoWithIcon>(SortFileComparisonTypeAZ);
+                        break;
+                    case FileSortMode.TypeZA:
+                        compare = new Comparison<FileSystemInfoWithIcon>(SortFileComparisonTypeZA);
+                        break;
+                    case FileSortMode.DateNO:
+                        compare = new Comparison<FileSystemInfoWithIcon>(SortFileComparisonDateNO);
+                        break;
+                    case FileSortMode.DateON:
+                        compare = new Comparison<FileSystemInfoWithIcon>(SortFileComparisonDateON);
+                        break;
+                }
+                fsi.Sort(compare);
+                return fsi;
+            });
         }
         internal async Task InitialLoadAsync()
         {
@@ -282,7 +286,7 @@ namespace MaiFileManager.Classes
             //await Task.Run(UpdateFileListAsync);
         }
 
-        private void UpdateBackDeep(int val)
+        internal void UpdateBackDeep(int val)
         {
             BackDeep += val;
             if (BackDeep < 0)
@@ -365,23 +369,29 @@ namespace MaiFileManager.Classes
             }
 
         }
+        internal int S3SortFileComparisonFolderToFile(S3Object x, S3Object y)
+        {
+            return (x.Key.EndsWith("/") == y.Key.EndsWith("/") ? 0 : (x.Key.EndsWith("/") ? -1 : 1));
+        }
+        internal int S3SortFileComparisonNameAZ(S3Object x, S3Object y)
+        {
+            int tmp = S3SortFileComparisonFolderToFile(x, y);
+            if (tmp != 0) return tmp;
 
-        internal async Task LoadSizeAndDateForS3()
+            return string.Compare(x.Key, y.Key, StringComparison.OrdinalIgnoreCase);
+        }
+
+        internal async Task LoadSizeAndDateForS3(List<FileSystemInfoWithIcon> listFile)
         {
             await Task.Run(() =>
             {
-                foreach (FileSystemInfoWithIcon f in CurrentFileList)
+                currentS3List.Sort(S3SortFileComparisonNameAZ);
+                listFile.Sort(SortFileComparisonNameAZ);
+                if (currentS3List.Count != listFile.Count) return;
+                for (int i = 0; i < listFile.Count; i++)
                 {
-                    S3Object result = currentS3List.Find(x => f.fileInfo.FullName.EndsWith(
-                                                                            x.Key.EndsWith("/") ?
-                                                                            x.Key.Remove(x.Key.Length - 1, 1) :
-                                                                            x.Key));
-                    if (result != null)
-                    {
-                        f.ConvertFileInfoSize(result.Size);
-                        f.ConvertFileLastModified(result.LastModified);
-                    }
-
+                    listFile[i].ConvertFileInfoSize(currentS3List[i].Size);
+                    listFile[i].ConvertFileLastModified(currentS3List[i].LastModified);
                 }
             });
         }
@@ -452,36 +462,46 @@ namespace MaiFileManager.Classes
             {
                 await Task.Run(async () =>
                 {
+
                     CurrentFileList.Clear();
                     if (IsHomePage)
                     {
                         await GenerateFileViewAsync();
                     }
-                    foreach (FileSystemInfo info in SortFileMode(CurrentDirectoryInfo.GetListFile().ToList()))
+                    List<FileSystemInfoWithIcon> tempFileList = new List<FileSystemInfoWithIcon>();
+                    foreach (FileSystemInfo info in CurrentDirectoryInfo.GetListFile().ToList())
                     {
                         await Task.Run(() =>
                         {
-                            if (string.Equals(info.FullName, "/storage/emulated/0/android", StringComparison.CurrentCultureIgnoreCase) 
+                            if (string.Equals(info.FullName, "/storage/emulated/0/android", StringComparison.CurrentCultureIgnoreCase)
                                 && Build.VERSION.SdkInt >= BuildVersionCodes.R)
                             {
-                               
+
                             }
                             else if (info.GetType() == typeof(FileInfo))
                             {
-                                CurrentFileList.Add(new FileSystemInfoWithIcon(info, MaiIcon.GetIcon(info.Extension), 40));
+                                tempFileList.Add(new FileSystemInfoWithIcon(info, MaiIcon.GetIcon(info.Extension), 40));
                             }
                             else if (info.GetType() == typeof(DirectoryInfo))
                             {
-                                CurrentFileList.Add(new FileSystemInfoWithIcon(info, "folder.png", 45));
+                                tempFileList.Add(new FileSystemInfoWithIcon(info, "folder.png", 45));
                             }
-
                         });
                     }
                     if (IsHomePage)
                     {
-                        await LoadSizeAndDateForS3();
-
+                        await LoadSizeAndDateForS3(tempFileList);
                     }
+                    tempFileList = await SortFileMode(tempFileList);
+
+                    foreach (FileSystemInfoWithIcon f in tempFileList)
+                    {
+                        await Task.Run(() =>
+                        {
+                            CurrentFileList.Add(f);
+                        });
+                    }
+
                     if (IsSelectionMode)
                     {
                         foreach (FileSystemInfoWithIcon f in CurrentFileList)

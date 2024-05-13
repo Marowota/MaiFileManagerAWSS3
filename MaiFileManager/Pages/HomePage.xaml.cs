@@ -154,10 +154,10 @@ public partial class HomePage : ContentPage
         }
         else
         {
-            BackButton.IsVisible = (FileListObj.BackDeep > 0);
             if (FileListObj.IsSelectionMode) return;
             if (FileListObj.BackDeep == 0) return;
             await FileListObj.BackAsync(sender, e);
+            BackButton.IsVisible = (FileListObj.BackDeep > 0);
         }
     }
 
@@ -316,13 +316,17 @@ public partial class HomePage : ContentPage
         {
             if (Preferences.Default.Get("Aws_Bucket_name", "") != FileListObj.currentBucket)
             {
-                FileListObj.CurrentDirectoryInfo.CurrentDir = MaiConstants.HomePath;
-                FileListObj.BackDeep = 0;
-                BackButton.IsVisible = (FileListObj.BackDeep > 0);
+                await Task.Run(() =>
+                {
+                    FileListObj.CurrentDirectoryInfo.CurrentDir = MaiConstants.HomePath;
+                    FileListObj.UpdateBackDeep(-FileListObj.BackDeep);
+                    BackButton.IsVisible = false;
+                });
+
             }
             if (!IsSearched)
             {
-                await Task.Run(FileListObj.UpdateFileListAsync);
+                await FileListObj.UpdateFileListAsync();
             }
             else
             {
