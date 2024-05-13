@@ -84,8 +84,14 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<PackageReference Include="AWSSDK.S3" Version="3.7.307.30" />
+		<PackageReference Include="AWSSDK.SecurityToken" Version="3.7.300.89" />
+		<PackageReference Include="AWSSDK.SSO" Version="3.7.300.88" />
+		<PackageReference Include="AWSSDK.SSOOIDC" Version="3.7.301.83" />
 		<PackageReference Include="CommunityToolkit.Maui" Version="5.1.0" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="7.0.0" />
+		<PackageReference Include="sqlite-net-pcl" Version="1.9.172" />
+		<PackageReference Include="SQLitePCLRaw.bundle_green" Version="2.1.8" />
 	</ItemGroup>
 
 	<ItemGroup>

@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Linq;
 using Android.OS;
+using AndroidX.Emoji2.Text.FlatBuffer;
 using MaiFileManager.Classes;
 using MaiFileManager.Services;
 using Org.W3c.Dom.LS;
@@ -153,10 +154,10 @@ public partial class HomePage : ContentPage
         }
         else
         {
+            BackButton.IsVisible = (FileListObj.BackDeep > 0);
             if (FileListObj.IsSelectionMode) return;
             if (FileListObj.BackDeep == 0) return;
             await FileListObj.BackAsync(sender, e);
-            BackButton.IsVisible = (FileListObj.BackDeep > 0);
         }
     }
 
@@ -313,6 +314,12 @@ public partial class HomePage : ContentPage
     {
         if (!FirstLoad)
         {
+            if (Preferences.Default.Get("Aws_Bucket_name", "") != FileListObj.currentBucket)
+            {
+                FileListObj.CurrentDirectoryInfo.CurrentDir = MaiConstants.HomePath;
+                FileListObj.BackDeep = 0;
+                BackButton.IsVisible = (FileListObj.BackDeep > 0);
+            }
             if (!IsSearched)
             {
                 await Task.Run(FileListObj.UpdateFileListAsync);
@@ -325,6 +332,7 @@ public partial class HomePage : ContentPage
                 }
             }
         }
+
         FirstLoad = false;
     }
 

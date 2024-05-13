@@ -120,7 +120,7 @@
                HeightRequest="30"
                Grid.Row="1"
                BindingContext="{x:Reference homePage}"
-               Text="{Binding FileListObj.CurrentDirectoryInfo.CurrentDir}"
+               Text="{Binding FileListObj.CurrentDirectoryInfo.CurrentDirView}"
                HorizontalOptions="StartAndExpand"
                HorizontalTextAlignment="Start"
                VerticalTextAlignment="Center"

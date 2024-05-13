@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 using Android.Net;
 using AndroidX.Core.App;
 using MaiFileManager;
+using MaiFileManager.Classes;
 using static Microsoft.Maui.ApplicationModel.Platform;
 using static AndroidX.Activity.Result.Contract.ActivityResultContracts;
 
@@ -24,7 +25,7 @@ namespace MaiFileManager.Services
             currentDir = dir;
         }
         public FileManager() :
-        this(global::Android.OS.Environment.ExternalStorageDirectory.Path)
+        this(MaiConstants.HomePath)
         {
         }
         public FileManager(int type)
@@ -32,7 +33,7 @@ namespace MaiFileManager.Services
             switch (type)
             {
                 case 0:
-                    currentDir = global::Android.OS.Environment.ExternalStorageDirectory.Path;
+                    currentDir = MaiConstants.HomePath;
                     break;
                 case 1:
                     currentDir = Android.OS.Environment.GetExternalStoragePublicDirectory(Android.OS.Environment.DirectoryDownloads).AbsolutePath;

@@ -17,6 +17,31 @@ namespace MaiFileManager.Classes
         public string fileInfoSize { get; set; }
         public string[] fileSizeMeasure { get; set; } = { "B", "K", "M", "G", "T" };
         public string lastModified { get; set; }
+        public double awsCustomSize { get; set; } = -1;
+        public DateTime awsCustomLastModified { get; set; }
+
+        public double dualFileSize
+        {
+            get
+            {
+                if (awsCustomSize != -1)
+                {
+                    return awsCustomSize;
+                }
+                return (fileInfo as FileInfo).Length;
+            }
+        }
+        public DateTime dualLastModified {
+            get
+            {
+                if (awsCustomLastModified != default)
+                {
+                    return awsCustomLastModified;
+                }
+                return fileInfo.LastWriteTime;
+            }
+        }
+
         private bool checkBoxSelectVisible = false;
         public bool CheckBoxSelectVisible
         {
@@ -65,12 +90,21 @@ namespace MaiFileManager.Classes
             ConvertFileLastModified();
             
         }
-        public void ConvertFileInfoSize()
+        public void ConvertFileInfoSize(double customSize = - 1)
         {
 
             if (fileInfo.GetType() == typeof(FileInfo))
             {
-                double tmp = (fileInfo as FileInfo).Length;
+                double tmp;
+                if (customSize == -1)
+                {
+
+                    tmp = (fileInfo as FileInfo).Length;
+                }
+                else
+                {
+                    tmp = customSize;
+                }
                 int i = 0;
                 while (tmp > 1024)
                 {
@@ -79,6 +113,8 @@ namespace MaiFileManager.Classes
                     if (i == 4) break;
                 }
                 fileInfoSize = string.Format(" {0:0.#} {1}", tmp, fileSizeMeasure[i]);
+                awsCustomSize = customSize;
+                
             }
             else
             {
@@ -86,8 +122,15 @@ namespace MaiFileManager.Classes
             }
         }
 
-        public void ConvertFileLastModified()
+        public void ConvertFileLastModified(DateTime? customLastModified = null)
         {
+            if (customLastModified != null)
+            {
+                DateTime custom = customLastModified ?? DateTime.Now;
+                lastModified = custom.ToString("G", CultureInfo.GetCultureInfo("vi-VN"));
+                awsCustomLastModified = custom;
+                return;
+            }
             lastModified = fileInfo.LastWriteTime.ToString("G", CultureInfo.GetCultureInfo("vi-VN"));
         }
     }

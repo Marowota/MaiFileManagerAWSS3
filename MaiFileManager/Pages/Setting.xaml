@@ -15,37 +15,108 @@
                 FontAttributes="Bold"
                 FontSize="Title"/>
     </Shell.TitleView>
-    <VerticalStackLayout>
-        <Border StrokeThickness="1"
+    <ScrollView>
+
+        <VerticalStackLayout >
+            <Border StrokeThickness="1"
                 StrokeShape="RoundRectangle 5,5,5,5"
                 BackgroundColor="Transparent">
-            <VerticalStackLayout Padding="15,5">
-                <Label Text="Theme"
+                <VerticalStackLayout Padding="15,5">
+                    <Label Text="AWS S3 Setting"
                        TextColor="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}"
                        FontAttributes="Bold"
                        FontSize="Medium"/>
-                <RadioButton x:Name="DefaultRd"  Content="Default" Margin="10,0" CheckedChanged="DefaultRd_CheckedChanged"/>
-                <RadioButton x:Name="LightRd" Content="Light" Margin="10,0" CheckedChanged="LightRd_CheckedChanged"/>
-                <RadioButton x:Name="DarkRd" Content="Dark" Margin="10,0" CheckedChanged="DarkRd_CheckedChanged"/>
-            </VerticalStackLayout>
-        </Border>
-        <Border StrokeThickness="1"
+                    <VerticalStackLayout x:Name="Authenticate" 
+                                         BindingContext="{x:Reference SettingPage}"
+                                         IsVisible="{Binding IsNotSignedIn}"> 
+                        <Label Text="Authentication"
+                       TextColor="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}"
+                       FontSize="Default"/>
+                        <Entry x:Name="AccessKey" Placeholder="Access Key" Margin="10,0" Text="{Binding AwsAccessKey}"
+                           BindingContext="{x:Reference SettingPage}"/>
+                        <Entry x:Name="SecretKey" Placeholder="Secret Key" Margin="10,0" 
+                        BindingContext="{x:Reference SettingPage}" IsPassword="{Binding HidePassword}" Text="{Binding AwsSecretKey}"/>
+                        <HorizontalStackLayout>
+                            <CheckBox x:Name="ShowPasswordChk" CheckedChanged="ShowPasswordChk_CheckedChanged"/>
+                            <Label Text="Show secret key"
+                       TextColor="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}"
+                       FontSize="Small"
+                       VerticalOptions="Center"/>
+                        </HorizontalStackLayout>
+                        <Button Text="Authenticate"  Margin="10,0" Clicked="Authenticate_Clicked"/>
+                        <HorizontalStackLayout HeightRequest="10"/>
+                    </VerticalStackLayout>
+
+                    <VerticalStackLayout x:Name="Account" 
+                                         BindingContext="{x:Reference SettingPage}"
+                                         IsVisible="{Binding IsSignedIn}">
+
+                        <VerticalStackLayout IsVisible="{Binding IsCreatingBucket}">
+                            <ActivityIndicator x:Name="CreatingBucket" IsRunning="{Binding IsCreatingBucket}" />
+                            <Label Text="Creating bucket..." Margin="10,0"/>
+                        </VerticalStackLayout>
+
+                        <VerticalStackLayout IsVisible="{Binding IsNotCreatingBucket}">
+                            <Grid Margin="10,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <VerticalStackLayout Grid.Column="0">
+                                    <Label BindingContext="{x:Reference SettingPage}" Text="Signed in as:"
+                               TextColor="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}"
+                               FontSize="Default" />
+                                    <Label BindingContext="{x:Reference SettingPage}" Text="{Binding AwsAccNameView}"
+                               TextColor="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}"
+                               FontSize="Default"/>
+                                </VerticalStackLayout>
+                                <Button x:Name="Signout" Grid.Column="1" 
+                                    Text="Sign out"  Margin="10,0" Clicked="Signout_Clicked" BorderWidth="1" 
+                                    TextColor="{AppThemeBinding Light={StaticResource Primary}, Dark={StaticResource White}}" 
+                                    Background="Transparent"
+                                    />
+                            </Grid>
+                            <Picker x:Name="BucketPicker" Title="Select a bucket" Margin="10,0" 
+                                    BindingContext="{x:Reference SettingPage}"  ItemsSource="{Binding BucketNames}" 
+                                    SelectedIndexChanged="BucketPicker_SelectedIndexChanged"/>
+                            <Button x:Name="NewBucket" Text="New Bucket" Clicked="NewBucket_Clicked" Margin="10,0"/>
+                        </VerticalStackLayout>
+                    </VerticalStackLayout>
+                    
+                    
+                </VerticalStackLayout>
+            </Border>
+            <Border StrokeThickness="1"
                 StrokeShape="RoundRectangle 5,5,5,5"
                 BackgroundColor="Transparent">
-            <VerticalStackLayout Padding="15,5">
-                <Label Text="Default sort mode"
+                <VerticalStackLayout Padding="15,5">
+                    <Label Text="Theme"
                        TextColor="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}"
                        FontAttributes="Bold"
                        FontSize="Medium"/>
-                <RadioButton x:Name="NameAZ" Content="Name (A to Z)" Margin="10,0" CheckedChanged="NameAZ_CheckedChanged"/>
-                <RadioButton x:Name="NameZA" Content="Name (Z to A)" Margin="10,0" CheckedChanged="NameZA_CheckedChanged"/>
-                <RadioButton x:Name="SizeSL" Content="Size (Small to Large)" Margin="10,0" CheckedChanged="SizeSL_CheckedChanged"/>
-                <RadioButton x:Name="SizeLS" Content="Size (Large to Small)" Margin="10,0" CheckedChanged="SizeLS_CheckedChanged"/>
-                <RadioButton x:Name="TypeAZ" Content="File type (A to Z)" Margin="10,0" CheckedChanged="TypeAZ_CheckedChanged"/>
-                <RadioButton x:Name="TypeZA" Content="File type (Z to A)" Margin="10,0" CheckedChanged="TypeZA_CheckedChanged"/>
-                <RadioButton x:Name="DateNO" Content="Last modified (New to Old)" Margin="10,0" CheckedChanged="DateNO_CheckedChanged"/>
-                <RadioButton x:Name="DateON" Content="Last modified (Old to New)" Margin="10,0" CheckedChanged="DateON_CheckedChanged"/>
-            </VerticalStackLayout>
-        </Border>
-    </VerticalStackLayout>
+                    <RadioButton x:Name="DefaultRd"  Content="Default" Margin="10,0" CheckedChanged="DefaultRd_CheckedChanged"/>
+                    <RadioButton x:Name="LightRd" Content="Light" Margin="10,0" CheckedChanged="LightRd_CheckedChanged"/>
+                    <RadioButton x:Name="DarkRd" Content="Dark" Margin="10,0" CheckedChanged="DarkRd_CheckedChanged"/>
+                </VerticalStackLayout>
+            </Border>
+            <Border StrokeThickness="1"
+                StrokeShape="RoundRectangle 5,5,5,5"
+                BackgroundColor="Transparent">
+                <VerticalStackLayout Padding="15,5">
+                    <Label Text="Default sort mode"
+                       TextColor="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}"
+                       FontAttributes="Bold"
+                       FontSize="Medium"/>
+                    <RadioButton x:Name="NameAZ" Content="Name (A to Z)" Margin="10,0" CheckedChanged="NameAZ_CheckedChanged"/>
+                    <RadioButton x:Name="NameZA" Content="Name (Z to A)" Margin="10,0" CheckedChanged="NameZA_CheckedChanged"/>
+                    <RadioButton x:Name="SizeSL" Content="Size (Small to Large)" Margin="10,0" CheckedChanged="SizeSL_CheckedChanged"/>
+                    <RadioButton x:Name="SizeLS" Content="Size (Large to Small)" Margin="10,0" CheckedChanged="SizeLS_CheckedChanged"/>
+                    <RadioButton x:Name="TypeAZ" Content="File type (A to Z)" Margin="10,0" CheckedChanged="TypeAZ_CheckedChanged"/>
+                    <RadioButton x:Name="TypeZA" Content="File type (Z to A)" Margin="10,0" CheckedChanged="TypeZA_CheckedChanged"/>
+                    <RadioButton x:Name="DateNO" Content="Last modified (New to Old)" Margin="10,0" CheckedChanged="DateNO_CheckedChanged"/>
+                    <RadioButton x:Name="DateON" Content="Last modified (Old to New)" Margin="10,0" CheckedChanged="DateON_CheckedChanged"/>
+                </VerticalStackLayout>
+            </Border>
+        </VerticalStackLayout>
+    </ScrollView>
 </ContentPage>

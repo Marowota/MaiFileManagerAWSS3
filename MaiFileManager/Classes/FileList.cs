@@ -1,9 +1,14 @@
-﻿using Android.OS;
+﻿using Amazon.S3.Model;
+using Android.OS;
+using MaiFileManager.Classes.Aws;
 using MaiFileManager.Services;
 using Microsoft.Maui.Dispatching;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using MaiFileManager.Classes;
+using CommunityToolkit.Maui.Core.Primitives;
 
 namespace MaiFileManager.Classes
 {
@@ -52,6 +57,11 @@ namespace MaiFileManager.Classes
         private double operatedPercent = 0;
         private string operatedStatusString = "";
         public Page NavigatedPage = null;
+        public bool IsHomePage { get; set; } = false;
+        private StorageService awsStorageService = new StorageService(new AwsCredentials(), Preferences.Default.Get("Aws_Bucket_name", ""));
+        private List<S3Object> currentS3List = new List<S3Object>();
+        public string currentBucket = "";
+        
         public double OperatedPercent
         {
             get
@@ -99,6 +109,7 @@ namespace MaiFileManager.Classes
         public FileList()
         {
             CurrentDirectoryInfo = new FileManager();
+            IsHomePage = true;
         }
         public FileList(int type)
         {
@@ -265,7 +276,9 @@ namespace MaiFileManager.Classes
             else
             {
                 await Task.Run(UpdateFileListAsync);
-            }    
+
+            }
+
             //await Task.Run(UpdateFileListAsync);
         }
 
@@ -278,9 +291,107 @@ namespace MaiFileManager.Classes
             }
         }
 
+
+        internal async Task GenerateFileViewAsync()
+        {
+            currentBucket = awsStorageService.bucketName;
+            awsStorageService = new StorageService(new AwsCredentials(), Preferences.Default.Get("Aws_Bucket_name", ""));
+            DirectoryInfo viewDir = new DirectoryInfo(MaiConstants.HomePath);
+            if (!viewDir.Exists)
+            {
+                viewDir.Create();
+            }
+
+            System.Diagnostics.Debug.WriteLine(MaiConstants.HomePath);
+
+            string awsPath = CurrentDirectoryInfo.CurrentDir.Remove(0,
+                MaiConstants.HomePath.Length);
+
+            if (awsPath.StartsWith("/")) { awsPath = awsPath.Remove(0, 1); }
+            List<S3Object> s3Objects = new List<S3Object>();
+            s3Objects = await awsStorageService.ListAllFileInPath(awsPath);
+            currentS3List = s3Objects;
+
+            DirectoryInfo currentDir = new DirectoryInfo(CurrentDirectoryInfo.CurrentDir);
+            DirectoryInfo parentDir = new DirectoryInfo(FileSystem.Current.CacheDirectory);
+
+            System.Diagnostics.Debug.WriteLine(currentDir);
+            System.Diagnostics.Debug.WriteLine(parentDir);
+
+            bool isParent = currentDir.FullName == parentDir.FullName;
+            while (currentDir.Parent != null)
+            {
+                if (currentDir.Parent.FullName == parentDir.FullName)
+                {
+                    isParent = true;
+                    break;
+                }
+                currentDir = currentDir.Parent;
+            }
+
+            if (isParent)
+            {
+                System.Diagnostics.Debug.WriteLine("IsParent");
+                currentDir = new DirectoryInfo(CurrentDirectoryInfo.CurrentDir);
+
+                await Task.Run(() =>
+                {
+                    foreach (FileInfo file in currentDir.GetFiles())
+                    {
+                        file.Delete();
+                    }
+                    foreach (DirectoryInfo dir in currentDir.GetDirectories())
+                    {
+                        dir.Delete(true);
+                    }
+                });
+
+                await Task.Run(() =>
+                {
+                    foreach (S3Object s3Object in s3Objects)
+                    {
+                        string path = Path.Combine(MaiConstants.HomePath, s3Object.Key);
+                        System.Diagnostics.Debug.WriteLine("createing path: ", path);
+                        if (s3Object.Size == 0 && s3Object.Key.EndsWith('/'))
+                        {
+                            Directory.CreateDirectory(path);
+                        }
+                        else
+                        {
+                            File.Create(path);
+                        }
+                    }
+                });
+            }
+
+        }
+
+        internal async Task LoadSizeAndDateForS3()
+        {
+            await Task.Run(() =>
+            {
+                foreach (FileSystemInfoWithIcon f in CurrentFileList)
+                {
+                    S3Object result = currentS3List.Find(x => f.fileInfo.FullName.EndsWith(
+                                                                            x.Key.EndsWith("/") ?
+                                                                            x.Key.Remove(x.Key.Length - 1, 1) :
+                                                                            x.Key));
+                    if (result != null)
+                    {
+                        f.ConvertFileInfoSize(result.Size);
+                        f.ConvertFileLastModified(result.LastModified);
+                    }
+
+                }
+            });
+        }
+
         internal async Task UpdateFileListAsync()
         {
             IsReloading = true;
+
+
+
             if (BackDeep == 0 && IsFavouriteMode)
             {
                 await Task.Run(async() =>
@@ -342,6 +453,10 @@ namespace MaiFileManager.Classes
                 await Task.Run(async () =>
                 {
                     CurrentFileList.Clear();
+                    if (IsHomePage)
+                    {
+                        await GenerateFileViewAsync();
+                    }
                     foreach (FileSystemInfo info in SortFileMode(CurrentDirectoryInfo.GetListFile().ToList()))
                     {
                         await Task.Run(() =>
@@ -362,6 +477,11 @@ namespace MaiFileManager.Classes
 
                         });
                     }
+                    if (IsHomePage)
+                    {
+                        await LoadSizeAndDateForS3();
+
+                    }
                     if (IsSelectionMode)
                     {
                         foreach (FileSystemInfoWithIcon f in CurrentFileList)
@@ -370,8 +490,11 @@ namespace MaiFileManager.Classes
                         }
                     }
                     NumberOfCheked = 0;
+
                 });
             }
+
+
             IsReloading = false;
         }
 

@@ -1,4 +1,5 @@
-﻿using System;
+﻿using MaiFileManager.Classes;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -20,6 +21,7 @@ namespace MaiFileManager.Services
                 currentDir = value;
                 OnPropertyChanged(nameof(CurrentDir));
                 OnPropertyChanged(nameof(DirName));
+                OnPropertyChanged(nameof(CurrentDirView));
             } 
         }
         public string DirName
@@ -27,10 +29,27 @@ namespace MaiFileManager.Services
             get
             {
                 if (currentDir == "Favourite") return "Favourite";
+                if (currentDir == MaiConstants.HomePath)
+                    return Preferences.Default.Get("Aws_Bucket_name", "");
                 return Path.GetFileName(CurrentDir);
             }
         }
-
+        public string CurrentDirView
+        {
+            get
+            {
+                if (currentDir == "Favourite") return "Favourite";
+                if (currentDir.StartsWith(MaiConstants.HomePath))
+                {
+                    return Preferences.Default.Get("Aws_Bucket_name", "") + currentDir.Substring(MaiConstants.HomePath.Length);
+                }
+                return currentDir;
+            }
+            set
+            {
+                OnPropertyChanged(nameof(CurrentDirView));
+            }
+        }
         public event PropertyChangedEventHandler PropertyChanged;
 
         public void OnPropertyChanged([CallerMemberName] string name = "") =>
