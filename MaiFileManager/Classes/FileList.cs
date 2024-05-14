@@ -233,10 +233,8 @@ namespace MaiFileManager.Classes
 
             return DateTime.Compare(x.dualLastModified, y.dualLastModified);
         }
-        internal async Task<List<FileSystemInfoWithIcon>> SortFileMode(List<FileSystemInfoWithIcon> fsi)
+        internal List<FileSystemInfoWithIcon> SortFileMode(List<FileSystemInfoWithIcon> fsi)
         {
-            return await Task<List<FileSystemInfoWithIcon>>.Run(() =>
-            {
 
                 Comparison<FileSystemInfoWithIcon> compare = new Comparison<FileSystemInfoWithIcon>(SortFileComparisonNameAZ);
 
@@ -269,7 +267,6 @@ namespace MaiFileManager.Classes
                 }
                 fsi.Sort(compare);
                 return fsi;
-            });
         }
         internal async Task InitialLoadAsync()
         {
@@ -383,19 +380,16 @@ namespace MaiFileManager.Classes
             return string.Compare(x.Key, y.Key, StringComparison.OrdinalIgnoreCase);
         }
 
-        internal async Task LoadSizeAndDateForS3(List<FileSystemInfoWithIcon> listFile)
+        internal void LoadSizeAndDateForS3(List<FileSystemInfoWithIcon> listFile)
         {
-            await Task.Run(() =>
+            currentS3List.Sort(S3SortFileComparisonNameAZ);
+            listFile.Sort(SortFileComparisonNameAZ);
+            if (currentS3List.Count != listFile.Count) return;
+            for (int i = 0; i < listFile.Count; i++)
             {
-                currentS3List.Sort(S3SortFileComparisonNameAZ);
-                listFile.Sort(SortFileComparisonNameAZ);
-                if (currentS3List.Count != listFile.Count) return;
-                for (int i = 0; i < listFile.Count; i++)
-                {
-                    listFile[i].ConvertFileInfoSize(currentS3List[i].Size);
-                    listFile[i].ConvertFileLastModified(currentS3List[i].LastModified);
-                }
-            });
+                listFile[i].ConvertFileInfoSize(currentS3List[i].Size);
+                listFile[i].ConvertFileLastModified(currentS3List[i].LastModified);
+            }
         }
 
         internal async Task UpdateFileListAsync()
@@ -492,9 +486,9 @@ namespace MaiFileManager.Classes
                     }
                     if (IsHomePage)
                     {
-                        await LoadSizeAndDateForS3(tempFileList);
+                        LoadSizeAndDateForS3(tempFileList);
                     }
-                    tempFileList = await SortFileMode(tempFileList);
+                    tempFileList = SortFileMode(tempFileList);
 
                     foreach (FileSystemInfoWithIcon f in tempFileList)
                     {

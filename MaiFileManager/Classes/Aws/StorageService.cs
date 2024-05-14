@@ -2,14 +2,8 @@
 using Amazon.Runtime;
 using Amazon.S3;
 using Amazon.S3.Model;
-using AndroidX.Core.Util;
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System.Net;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace MaiFileManager.Classes.Aws
 {
@@ -268,15 +262,28 @@ namespace MaiFileManager.Classes.Aws
             }
             try
             {
-                var deleteObjectRequest = new DeleteObjectRequest
+                if (bucket == null )
                 {
-                    BucketName = bucket ?? bucketName,
-                    Key = path,
+                    bucket = bucketName;
+                }
+                var listRequest = new ListObjectsV2Request
+                {
+                    BucketName = bucket,
+                    Prefix = path,
                 };
+                ListObjectsV2Response listResponse;
+                listResponse = await client.ListObjectsV2Async(listRequest);
+
+                if (listResponse.S3Objects.Count == 0)
+                {
+                    Debug.WriteLine($"Object: {path} not found in {bucket} when deleting object.");
+                    await SendNotification("Error", $"Object: {path} not found in {bucket}.", "OK");
+                    return false;
+                }
 
                 Debug.WriteLine($"Deleting object: {path}");
-                await client.DeleteObjectAsync(deleteObjectRequest);
-                Debug.WriteLine($"Object: {path} deleted from {bucketName}.");
+                listResponse.S3Objects.ForEach(async (obj) => await client.DeleteObjectAsync(bucket, obj.Key));
+                Debug.WriteLine($"Object: {path} deleted from {bucket}.");
                 return true;
             }
             catch (AmazonS3Exception ex)
@@ -314,14 +321,26 @@ namespace MaiFileManager.Classes.Aws
             var response = new CopyObjectResponse();
             try
             {
-                var request = new CopyObjectRequest
+                var listRequest = new ListObjectsV2Request
                 {
-                    SourceBucket = sourceBucketName,
-                    SourceKey = sourceKey,
-                    DestinationBucket = destinationBucketName,
-                    DestinationKey = destinationKey,
+                    BucketName = sourceBucketName,
+                    Prefix = sourceKey,
                 };
-                response = await client.CopyObjectAsync(request);
+                ListObjectsV2Response listResponse;
+                listResponse = await client.ListObjectsV2Async(listRequest);
+
+                listResponse.S3Objects.ForEach(async (obj) =>
+                {
+                    var request = new CopyObjectRequest
+                    {
+                        SourceBucket = sourceBucketName,
+                        SourceKey = obj.Key,
+                        DestinationBucket = destinationBucketName,
+                        DestinationKey = destinationKey + obj.Key.Remove(0, sourceKey.Length),
+                    };
+                    response = await client.CopyObjectAsync(request);
+                });
+
             }
             catch (AmazonS3Exception ex)
             {
@@ -390,7 +409,8 @@ namespace MaiFileManager.Classes.Aws
 
                     Debug.WriteLine("checking" + tmp);
 
-                    if (tmp.Contains('/') && tmp.Last() != '/' || tmp.Length == 0)
+                    if (!((tmp.EndsWith("/") && tmp.LastIndexOf('/') == tmp.IndexOf('/')) 
+                        || tmp.IndexOf('/') == -1 ) || tmp.Length == 0)
                     {
                         s3Objects.RemoveAt(i);
                     }
