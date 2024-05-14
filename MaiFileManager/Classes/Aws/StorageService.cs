@@ -161,45 +161,67 @@ namespace MaiFileManager.Classes.Aws
             return true;
         }
 
-        public async Task<String> DownloadObjectFromBucketAsync(string objectName, string filePath)
+        public async Task<String> DownloadObjectFromBucketAsync(string objectName, string filePath, CancellationToken cancellationToken)
         {
             if (await CheckAndCreateBucket(bucketName) == false)
             {
                 return "";
             }
-            Debug.WriteLine($"Downloading object from S3 bucket: {objectName}");  
-            // Create a GetObject request
-            var request = new GetObjectRequest
-            {
-                BucketName = bucketName,
-                Key = objectName,
-            };
+            CancellationTokenSource sourceGet = new CancellationTokenSource();
+            CancellationTokenSource sourceWrite = new CancellationTokenSource();
             try
             {
-                // Issue request and remember to dispose of the response
-                using GetObjectResponse response = await client.GetObjectAsync(request);
+                cancellationToken.ThrowIfCancellationRequested();
+                Debug.WriteLine($"Downloading object from S3 bucket: {objectName}");
+                // Create a GetObject request
+                var request = new GetObjectRequest
+                {
+                    BucketName = bucketName,
+                    Key = objectName,
+                };
+                cancellationToken.ThrowIfCancellationRequested();
+                try
+                {
+                    // Issue request and remember to dispose of the response
+                    using GetObjectResponse response = await client.GetObjectAsync(request, sourceGet.Token);
 
-                Debug.WriteLine("Saving to local file: {0}", filePath);
-                // Save object to local file
-                await response.WriteResponseStreamToFileAsync(filePath, true, CancellationToken.None);
-                return filePath;
+                    cancellationToken.ThrowIfCancellationRequested();
+                    Debug.WriteLine("Saving to local file: {0}", filePath);
+                    // Save object to local file
+                    await response.WriteResponseStreamToFileAsync(filePath, true, sourceWrite.Token);
+
+                    cancellationToken.ThrowIfCancellationRequested();
+                    return filePath;
+                }
+                catch (AmazonS3Exception ex)
+                {
+                    Debug.WriteLine($"Error saving {objectName}: {ex.Message}");
+                    await SendNotification("Error", $"AWS S3 Message:'{ex.Message}'", "OK");
+                    return "";
+                }
+                catch (AmazonServiceException ex)
+                {
+                    Debug.WriteLine($"Error saving {objectName}: {ex.Message}");
+                    await SendNotification("Error", $"AWS Message:'{ex.Message}'", "OK");
+                    return "";
+                }
+                catch (WebException ex)
+                {
+                    Debug.WriteLine($"Error encountered on server. Message:'{ex.Message}' when checking bucket.");
+                    await SendNotification("Error", "Can't connect to S3 Service, check your internet connection", "OK");
+                    return "";
+                }
             }
-            catch (AmazonS3Exception ex)
+            catch (OperationCanceledException ex)
             {
-                Debug.WriteLine($"Error saving {objectName}: {ex.Message}");
-                await SendNotification("Error", $"AWS S3 Message:'{ex.Message}'", "OK");
+                sourceGet.Cancel();
+                sourceWrite.Cancel();
+                Debug.WriteLine("Operation canceled");
                 return "";
             }
-            catch (AmazonServiceException ex)
+            catch (Android.OS.NetworkOnMainThreadException)
             {
-                Debug.WriteLine($"Error saving {objectName}: {ex.Message}");
-                await SendNotification("Error", $"AWS Message:'{ex.Message}'", "OK");
-                return "";
-            }
-            catch (WebException ex)
-            {
-                Debug.WriteLine($"Error encountered on server. Message:'{ex.Message}' when checking bucket.");
-                await SendNotification("Error", "Can't connect to S3 Service, check your internet connection", "OK");
+                Debug.WriteLine("Operation canceled gahahahaha");
                 return "";
             }
             catch (Exception ex)

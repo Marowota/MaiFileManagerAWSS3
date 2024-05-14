@@ -206,6 +206,7 @@ public partial class Setting : ContentPage, INotifyPropertyChanged
             ListBucketsResponse response = await storageService.GetBuckets();
             if (response == null)
             {
+                BucketNames = new List<string>();
                 await DisplayAlert("Error", "Something went wrong, check your internet connection", "OK");
             }
             else

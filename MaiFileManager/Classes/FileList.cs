@@ -8,6 +8,9 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using MaiFileManager.Classes;
+using MaiFileManager.Pages;
+using CommunityToolkit.Maui.Views;
+using System.Text;
 
 namespace MaiFileManager.Classes
 {
@@ -19,7 +22,7 @@ namespace MaiFileManager.Classes
         public enum FileSelectOption
         {
             None,
-            Cut, 
+            Cut,
             Copy,
         }
 
@@ -39,15 +42,15 @@ namespace MaiFileManager.Classes
 
         public ObservableCollection<FileSystemInfoWithIcon> CurrentFileList { get; set; } = new ObservableCollection<FileSystemInfoWithIcon>();
         public FileManager CurrentDirectoryInfo { get; set; }
-        public int BackDeep {get; set;} = 0;
+        public int BackDeep { get; set; } = 0;
         public static FileSelectOption OperatedOption { get; set; } = FileSelectOption.None;
         public static ObservableCollection<FileSystemInfoWithIcon> OperatedFileList { get; set; } = new ObservableCollection<FileSystemInfoWithIcon>();
         public bool IsSelectionMode { get; set; } = false;
         public int NumberOfCheked { get; set; } = 0;
         private bool isReloading = true;
         public FileSortMode SortMode = (FileSortMode)Preferences.Default.Get("Sort_by", 0);
-        public ObservableCollection<FileSystemInfoWithIcon> OperatedFileListView { get; set; } = new ObservableCollection<FileSystemInfoWithIcon>(); 
-        public ObservableCollection<FileSystemInfoWithIcon> OperatedCompletedListView { get; set; } = new ObservableCollection<FileSystemInfoWithIcon>(); 
+        public ObservableCollection<FileSystemInfoWithIcon> OperatedFileListView { get; set; } = new ObservableCollection<FileSystemInfoWithIcon>();
+        public ObservableCollection<FileSystemInfoWithIcon> OperatedCompletedListView { get; set; } = new ObservableCollection<FileSystemInfoWithIcon>();
         public ObservableCollection<FileSystemInfoWithIcon> OperatedErrorListView { get; set; } = new ObservableCollection<FileSystemInfoWithIcon>();
         public bool IsFavouriteMode { get; set; } = false;
         public bool IsNotFavouritePage { get; set; } = true;
@@ -60,7 +63,7 @@ namespace MaiFileManager.Classes
         private StorageService awsStorageService = new StorageService(new AwsCredentials(), Preferences.Default.Get("Aws_Bucket_name", ""));
         private List<S3Object> currentS3List = new List<S3Object>();
         public string currentBucket = "";
-        
+
         public double OperatedPercent
         {
             get
@@ -100,9 +103,9 @@ namespace MaiFileManager.Classes
         }
         public bool IsNotReloading
         {
-            get 
-            { 
-                return !isReloading; 
+            get
+            {
+                return !isReloading;
             }
         }
         public FileList()
@@ -232,7 +235,8 @@ namespace MaiFileManager.Classes
         }
         internal async Task<List<FileSystemInfoWithIcon>> SortFileMode(List<FileSystemInfoWithIcon> fsi)
         {
-            return await Task<List<FileSystemInfoWithIcon>>.Run(() => {
+            return await Task<List<FileSystemInfoWithIcon>>.Run(() =>
+            {
 
                 Comparison<FileSystemInfoWithIcon> compare = new Comparison<FileSystemInfoWithIcon>(SortFileComparisonNameAZ);
 
@@ -402,7 +406,7 @@ namespace MaiFileManager.Classes
 
             if (BackDeep == 0 && IsFavouriteMode)
             {
-                await Task.Run(async() =>
+                await Task.Run(async () =>
                 {
                     CurrentFileList.Clear();
                     //file
@@ -526,13 +530,29 @@ namespace MaiFileManager.Classes
             {
                 if (IsHomePage)
                 {
+                    Page tmp = Shell.Current.CurrentPage;
+                    CancellationTokenSource source = new CancellationTokenSource();
                     FileInfo file = (FileInfo)selected;
-                    await Task.Run(() => File.Delete(file.FullName));
-                    string path = await awsStorageService.DownloadObjectFromBucketAsync(file.FullName.Remove(0, MaiConstants.HomePath.Length + 1), file.FullName);
-                    selected = new FileInfo(path);
+                    StringBuilder path = new StringBuilder();
 
+                    await Task.Run(() => File.Delete(file.FullName));
+
+                    var popup = new SpinnerPopup(source, awsStorageService, file, ref path);
+                    await tmp.Dispatcher.DispatchAsync(async () =>
+                        await tmp.ShowPopupAsync(popup));
+
+                    
+
+                    if (path.ToString() != "")
+                    {
+                        selected = new FileInfo(path.ToString());
+                        if (selected.Exists) await Launcher.OpenAsync(new OpenFileRequest("Open File", new ReadOnlyFile(selected.FullName)));
+                    }
                 }
-                if (selected.Exists) await Launcher.OpenAsync(new OpenFileRequest("Open File", new ReadOnlyFile(selected.FullName)));
+                else
+                {
+                    if (selected.Exists) await Launcher.OpenAsync(new OpenFileRequest("Open File", new ReadOnlyFile(selected.FullName)));
+                }
                 return 0;
             }
             else if (selected.GetType() == typeof(DirectoryInfo))
@@ -540,7 +560,7 @@ namespace MaiFileManager.Classes
                 if (selected == null)
                     return -1;
                 int deep = 0;
-                string tmp = selected.FullName; 
+                string tmp = selected.FullName;
                 if (BackDeep == 0 && IsFavouriteMode)
                 {
                     deep++;
@@ -619,7 +639,7 @@ namespace MaiFileManager.Classes
                 else
                 {
                     file.CopyTo(targetFilePath);
-                }    
+                }
             }
 
             foreach (DirectoryInfo directory in sourceDirTemp)
@@ -637,7 +657,7 @@ namespace MaiFileManager.Classes
                 dir2 = (tmp != null) ? tmp.FullName : null;
             }
             return false;
-        }  
+        }
         async Task<bool> ArletForExisted(string dir, string dirName)
         {
             bool result = false;
@@ -652,10 +672,11 @@ namespace MaiFileManager.Classes
                 {
                     tmp = NavigatedPage;
                 }
-                await tmp.Dispatcher.DispatchAsync(async () => {
+                await tmp.Dispatcher.DispatchAsync(async () =>
+                {
                     await tmp.DisplayAlert("Existed", "Folder "
                                                                 + dirName
-                                                                + "already exists in this directory\n" ,"OK");
+                                                                + "already exists in this directory\n", "OK");
                     result = false;
                 });
             }
@@ -670,13 +691,14 @@ namespace MaiFileManager.Classes
                 {
                     tmp = NavigatedPage;
                 }
-                await tmp.Dispatcher.DispatchAsync(async () => {
-                        result = await tmp.DisplayAlert("Existed", "File "
-                                                                    + dirName
-                                                                    + "already exists in this directory\n"
-                                                                    + "Write new file or keep old file?",
-                                                                    "Write new", "Keep old");
-                    });
+                await tmp.Dispatcher.DispatchAsync(async () =>
+                {
+                    result = await tmp.DisplayAlert("Existed", "File "
+                                                                + dirName
+                                                                + "already exists in this directory\n"
+                                                                + "Write new file or keep old file?",
+                                                                "Write new", "Keep old");
+                });
 
             }
             return result;
@@ -754,7 +776,8 @@ namespace MaiFileManager.Classes
                         tmp = NavigatedPage;
                     }
                     //maybe dont need
-                    await tmp.Dispatcher.DispatchAsync(async () => {
+                    await tmp.Dispatcher.DispatchAsync(async () =>
+                    {
                         await tmp.DisplayAlert("Duplicated", "Duplicate file/folder name, please choose another name", "OK");
                     });
                     return;
@@ -764,7 +787,7 @@ namespace MaiFileManager.Classes
                     FileSystemInfo f = new DirectoryInfo(path);
                     await AddOrRemoveFavouriteAsync(0, true, f);
                 }
-                Directory.Move(path, newPath); 
+                Directory.Move(path, newPath);
                 if (isInFavourite)
                 {
                     FileSystemInfo f = new DirectoryInfo(newPath);
@@ -786,7 +809,8 @@ namespace MaiFileManager.Classes
                         tmp = NavigatedPage;
                     }
                     //maybe dont need
-                    await tmp.Dispatcher.DispatchAsync(async () => {
+                    await tmp.Dispatcher.DispatchAsync(async () =>
+                    {
                         await tmp.DisplayAlert("Duplicated", "Duplicate file/folder name, please choose another name", "OK");
                     });
                     return;
@@ -901,7 +925,7 @@ namespace MaiFileManager.Classes
                                     OperatedPercent = (double)(OperatedFileList.Count - OperatedFileListView.Count) / OperatedFileList.Count;
                                     continue;
                                 }
-                                (f.fileInfo as DirectoryInfo).MoveTo(targetFilePath); 
+                                (f.fileInfo as DirectoryInfo).MoveTo(targetFilePath);
                                 if (!canceled && isInFavourite)
                                 {
                                     await AddOrRemoveFavouriteAsync(0, true, null, fileFullName, 1);
@@ -911,7 +935,7 @@ namespace MaiFileManager.Classes
                             break;
                         }
                     case FileSelectOption.Copy:
-                        { 
+                        {
                             if (f.fileInfo.GetType() == typeof(FileInfo))
                             {
                                 string targetFilePath = Path.Combine(CurrentDirectoryInfo.CurrentDir, f.fileInfo.Name);
@@ -984,7 +1008,7 @@ namespace MaiFileManager.Classes
                                     CopyDirectory((f.fileInfo as DirectoryInfo), CurrentDirectoryInfo.CurrentDir);
                                 }
                             }
-                        break;
+                            break;
                         }
                 }
                 OperatedFileListView.Remove(f);
@@ -1026,7 +1050,7 @@ namespace MaiFileManager.Classes
             {
                 CurrentFileList.Clear();
                 directoryList = dir.GetDirectories("**", System.IO.SearchOption.AllDirectories)
-                                   .Where(dirInfo 
+                                   .Where(dirInfo
                                     => dirInfo.Name.Contains(value, StringComparison.OrdinalIgnoreCase));
                 foreach (DirectoryInfo directoryInfo in directoryList)
                 {
@@ -1037,7 +1061,7 @@ namespace MaiFileManager.Classes
                               => fileInfo.Name.Contains(value, StringComparison.OrdinalIgnoreCase));
                 foreach (FileInfo fileInfo in fileList)
                 {
-                    await Task.Run(() => 
+                    await Task.Run(() =>
                     {
                         CurrentFileList.Add(new FileSystemInfoWithIcon(fileInfo, MaiIcon.GetIcon(fileInfo.Extension), 40));
                     });
