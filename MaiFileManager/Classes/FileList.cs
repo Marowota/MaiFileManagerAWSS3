@@ -8,8 +8,6 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using MaiFileManager.Classes;
-using CommunityToolkit.Maui.Core.Primitives;
-using CommunityToolkit.Maui.Core.Extensions;
 
 namespace MaiFileManager.Classes
 {
@@ -526,8 +524,15 @@ namespace MaiFileManager.Classes
             FileSystemInfo selected = selectedWIcon.fileInfo;
             if (selected.GetType() == typeof(FileInfo))
             {
-                FileInfo file = (FileInfo)selected;
-                await Launcher.OpenAsync(new OpenFileRequest("Open File", new ReadOnlyFile(selected.FullName)));
+                if (IsHomePage)
+                {
+                    FileInfo file = (FileInfo)selected;
+                    await Task.Run(() => File.Delete(file.FullName));
+                    string path = await awsStorageService.DownloadObjectFromBucketAsync(file.FullName.Remove(0, MaiConstants.HomePath.Length + 1), file.FullName);
+                    selected = new FileInfo(path);
+
+                }
+                if (selected.Exists) await Launcher.OpenAsync(new OpenFileRequest("Open File", new ReadOnlyFile(selected.FullName)));
                 return 0;
             }
             else if (selected.GetType() == typeof(DirectoryInfo))

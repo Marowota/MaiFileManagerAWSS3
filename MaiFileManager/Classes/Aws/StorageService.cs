@@ -3,11 +3,11 @@ using Amazon.Runtime;
 using Amazon.S3;
 using Amazon.S3.Model;
 using AndroidX.Core.Util;
-using CommunityToolkit.Maui.Behaviors;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -67,6 +67,12 @@ namespace MaiFileManager.Classes.Aws
             }
         }
 
+        public async Task SendNotification(string title, string message, string cancel)
+        {
+            Page tmp = Shell.Current.CurrentPage;
+            await tmp.Dispatcher.DispatchAsync(async () =>
+                await tmp.DisplayAlert(title, message, cancel));
+        }
         public async Task<bool> IsBucketExist(string bucketName)
         {
             
@@ -80,19 +86,26 @@ namespace MaiFileManager.Classes.Aws
             catch (AmazonS3Exception ex)
             {
                 Debug.WriteLine($"Error checking bucket: '{ex.Message}'");
-                await Shell.Current.DisplayAlert("Error", $"AWS S3 Message:'{ex.Message}'", "OK");
+                await SendNotification("Error", $"AWS S3 Message:'{ex.Message}'", "OK");
                 return false;
             }
             catch (AmazonServiceException ex)
             {
                 Debug.WriteLine($"Error checking bucket: '{ex.Message}'");
-                await Shell.Current.DisplayAlert("Error", $"AWS Message:'{ex.Message}'", "OK");
+                await SendNotification("Error", $"AWS Message:'{ex.Message}'", "OK");
+                return false;
+            }
+            catch (WebException ex)
+            {
+                Debug.WriteLine($"Error encountered on server. Message:'{ex.Message}' when checking bucket.");
+                await SendNotification("Error", "Can't connect to S3 Service, check your internet connection", "OK");
                 return false;
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error encountered on server. Message:'{ex.Message}' when checking bucket.");
-                await Shell.Current.DisplayAlert("Error", $"Application Message:'{ex.Message}'", "OK");
+                await SendNotification("Error", $"Application Message:'{ex.Message}'", "OK");
+                
                 return false;
             }
         }
@@ -114,18 +127,27 @@ namespace MaiFileManager.Classes.Aws
             catch (AmazonS3Exception ex)
             {
                 Debug.WriteLine($"Error creating bucket: '{ex.Message}'");
-                await Shell.Current.DisplayAlert("Error", $"AWS S3 Message:'{ex.Message}'", "OK");
+                
+                await SendNotification("Error", $"AWS S3 Message:'{ex.Message}'", "OK");
                 return false;
             }
             catch (AmazonServiceException ex) { 
                 Debug.WriteLine($"Error creating bucket: '{ex.Message}'");
-                await Shell.Current.DisplayAlert("Error", $"AWS Message:'{ex.Message}'", "OK");
+
+                await SendNotification("Error", $"AWS Message:'{ex.Message}'", "OK");
+                return false;
+            }
+            catch (WebException ex)
+            {
+                Debug.WriteLine($"Error encountered on server. Message:'{ex.Message}' when checking bucket.");
+                await SendNotification("Error", "Can't connect to S3 Service, check your internet connection", "OK");
                 return false;
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error encountered on server. Message:'{ex.Message}' when creating bucket.");
-                await Shell.Current.DisplayAlert("Error", $"Application Message:'{ex.Message}'", "OK");
+                await SendNotification("Error", $"Application Message:'{ex.Message}'", "OK");
+
                 return false;
             }
         }
@@ -145,38 +167,45 @@ namespace MaiFileManager.Classes.Aws
             {
                 return "";
             }
+            Debug.WriteLine($"Downloading object from S3 bucket: {objectName}");  
             // Create a GetObject request
             var request = new GetObjectRequest
             {
                 BucketName = bucketName,
                 Key = objectName,
             };
-
-            // Issue request and remember to dispose of the response
-            using GetObjectResponse response = await client.GetObjectAsync(request);
-
             try
             {
+                // Issue request and remember to dispose of the response
+                using GetObjectResponse response = await client.GetObjectAsync(request);
+
+                Debug.WriteLine("Saving to local file: {0}", filePath);
                 // Save object to local file
-                await response.WriteResponseStreamToFileAsync($"{filePath}\\{objectName}", true, CancellationToken.None);
-                return $"{filePath}\\{objectName}";
+                await response.WriteResponseStreamToFileAsync(filePath, true, CancellationToken.None);
+                return filePath;
             }
             catch (AmazonS3Exception ex)
             {
                 Debug.WriteLine($"Error saving {objectName}: {ex.Message}");
-                await Shell.Current.DisplayAlert("Error", $"AWS S3 Message:'{ex.Message}'", "OK");
+                await SendNotification("Error", $"AWS S3 Message:'{ex.Message}'", "OK");
                 return "";
             }
             catch (AmazonServiceException ex)
             {
                 Debug.WriteLine($"Error saving {objectName}: {ex.Message}");
-                await Shell.Current.DisplayAlert("Error", $"AWS Message:'{ex.Message}'", "OK");
+                await SendNotification("Error", $"AWS Message:'{ex.Message}'", "OK");
+                return "";
+            }
+            catch (WebException ex)
+            {
+                Debug.WriteLine($"Error encountered on server. Message:'{ex.Message}' when checking bucket.");
+                await SendNotification("Error", "Can't connect to S3 Service, check your internet connection", "OK");
                 return "";
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error encountered on server. Message:'{ex.Message}' when downloading object.");
-                await Shell.Current.DisplayAlert("Error", $"Application Message:'{ex.Message}'", "OK");
+                await SendNotification("Error", $"Application Message:'{ex.Message}'", "OK");
                 return "";
             }
         }
@@ -231,31 +260,38 @@ namespace MaiFileManager.Classes.Aws
             catch (AmazonS3Exception ex)
             {
                 Debug.WriteLine($"Error encountered on server. Message:'{ex.Message}' when deleting an object.");
-                await Shell.Current.DisplayAlert("Error", $"AWS S3 Message:'{ex.Message}'", "OK");
+                await SendNotification("Error", $"AWS S3 Message:'{ex.Message}'", "OK");
                 return false;
             }
             catch (AmazonServiceException ex)
             {
                 Debug.WriteLine($"Error encountered on server. Message:'{ex.Message}' when deleting an object.");
-                await Shell.Current.DisplayAlert("Error", $"AWS Message:'{ex.Message}'", "OK");
+                await SendNotification("Error", $"AWS Message:'{ex.Message}'", "OK");
+                return false;
+            }
+            catch (WebException ex)
+            {
+                Debug.WriteLine($"Error encountered on server. Message:'{ex.Message}' when checking bucket.");
+                await SendNotification("Error", "Can't connect to S3 Service, check your internet connection", "OK");
                 return false;
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error encountered on server. Message:'{ex.Message}' when deleting an object.");
-                await Shell.Current.DisplayAlert("Error", $"Application Message:'{ex.Message}'", "OK");
+                await SendNotification("Error", $"Application Message:'{ex.Message}'", "OK");
                 return false;
             }
         }
 
         public async Task<List<S3Object>> ListAllFileInPath(string path)
         {
-            if (await CheckAndCreateBucket(bucketName) == false)
-            {
-                return new List<S3Object>();
-            }
+
             try
             {
+                if (await CheckAndCreateBucket(bucketName) == false)
+                {
+                    return new List<S3Object>();
+                }
                 var request = new ListObjectsV2Request
                 {
                     BucketName = bucketName,
@@ -265,8 +301,9 @@ namespace MaiFileManager.Classes.Aws
                 ListObjectsV2Response response;
 
                 response = await client.ListObjectsV2Async(request);
-                List<S3Object> s3Objects = response.S3Objects;
-                
+
+
+                List<S3Object> s3Objects = response.S3Objects ?? new List<S3Object>();
                 Debug.WriteLine($"Found {s3Objects.Count} objects in {bucketName} with path {path}.");
                 foreach (var item in s3Objects)
                 {
@@ -301,19 +338,25 @@ namespace MaiFileManager.Classes.Aws
             catch (AmazonS3Exception ex)
             {
                 Debug.WriteLine($"Error encountered on server. Message:'{ex.Message}' getting list of objects.");
-                await Shell.Current.DisplayAlert("Error", $"AWS S3 Message:'{ex.Message}'", "OK");
+                await SendNotification("Error", $"AWS S3 Message:'{ex.Message}'", "OK");
                 return new List<S3Object>();
             }
             catch (AmazonServiceException ex)
             {
                 Debug.WriteLine($"Error encountered on server. Message:'{ex.Message}' getting list of objects.");
-                await Shell.Current.DisplayAlert("Error", $"AWS Message:'{ex.Message}'", "OK");
+                await SendNotification("Error", $"AWS Message:'{ex.Message}'", "OK");
+                return new List<S3Object>();
+            }
+            catch (WebException ex)
+            {
+                Debug.WriteLine($"Error encountered on server. Message:'{ex.Message}' when checking bucket.");
+                await SendNotification("Error", "Can't connect to S3 Service, check your internet connection", "OK");
                 return new List<S3Object>();
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error encountered on server. Message:'{ex.Message}' getting list of objects.");
-                await Shell.Current.DisplayAlert("Error", $"Application Message:'{ex.Message}'", "OK");
+                await SendNotification("Error", $"Application Message:'{ex.Message}'", "OK");
                 return new List<S3Object>();
             }
         }
