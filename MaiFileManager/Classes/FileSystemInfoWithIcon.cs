@@ -19,7 +19,7 @@ namespace MaiFileManager.Classes
         public string lastModified { get; set; }
         public double awsCustomSize { get; set; } = -1;
         public DateTime awsCustomLastModified { get; set; }
-
+        public string bucketName { get; set; }
         public double dualFileSize
         {
             get

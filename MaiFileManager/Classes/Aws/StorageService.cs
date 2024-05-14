@@ -260,7 +260,7 @@ namespace MaiFileManager.Classes.Aws
             }
         }
 
-        public async Task<bool> DeleteObjectAsync(string path)
+        public async Task<bool> DeleteObjectAsync(string path, string bucket = null)
         {
             if (await CheckAndCreateBucket(bucketName) == false)
             {
@@ -270,7 +270,7 @@ namespace MaiFileManager.Classes.Aws
             {
                 var deleteObjectRequest = new DeleteObjectRequest
                 {
-                    BucketName = bucketName,
+                    BucketName = bucket ?? bucketName,
                     Key = path,
                 };
 
@@ -304,6 +304,53 @@ namespace MaiFileManager.Classes.Aws
                 return false;
             }
         }
+
+        public async Task<CopyObjectResponse> CopyingObjectAsync(
+                        string sourceKey,
+                        string destinationKey,
+                        string sourceBucketName,
+                        string destinationBucketName)
+        {
+            var response = new CopyObjectResponse();
+            try
+            {
+                var request = new CopyObjectRequest
+                {
+                    SourceBucket = sourceBucketName,
+                    SourceKey = sourceKey,
+                    DestinationBucket = destinationBucketName,
+                    DestinationKey = destinationKey,
+                };
+                response = await client.CopyObjectAsync(request);
+            }
+            catch (AmazonS3Exception ex)
+            {
+                Debug.WriteLine($"Error encountered on server. Message:'{ex.Message}' when copying an object.");
+                await SendNotification("Error", $"AWS S3 Message:'{ex.Message}'", "OK");
+                return null;
+            }
+            catch (AmazonServiceException ex)
+            {
+                Debug.WriteLine($"Error encountered on server. Message:'{ex.Message}' when copying an object.");
+                await SendNotification("Error", $"AWS Message:'{ex.Message}'", "OK");
+                return null;
+            }
+            catch (WebException ex)
+            {
+                Debug.WriteLine($"Error encountered on server. Message:'{ex.Message}' when copying bucket.");
+                await SendNotification("Error", "Can't connect to S3 Service, check your internet connection", "OK");
+                return null;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error encountered on server. Message:'{ex.Message}' when copying an object.");
+                await SendNotification("Error", $"Application Message:'{ex.Message}'", "OK");
+                return null;
+            }
+
+            return response;
+        }
+
 
         public async Task<List<S3Object>> ListAllFileInPath(string path)
         {

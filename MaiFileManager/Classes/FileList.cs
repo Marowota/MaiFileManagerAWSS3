@@ -500,6 +500,7 @@ namespace MaiFileManager.Classes
                     {
                         await Task.Run(() =>
                         {
+                            f.bucketName = currentBucket;
                             CurrentFileList.Add(f);
                         });
                     }
@@ -828,6 +829,35 @@ namespace MaiFileManager.Classes
                 }
             }
         }
+
+        internal async Task<bool> PasteFileAndFolderForS3(FileSystemInfoWithIcon f, string targetFilePath, FileSelectOption option)
+        {
+
+            string sourceFilePath = f.fileInfo.FullName.Remove(0, MaiConstants.HomePath.Length + 1);
+            if (sourceFilePath.StartsWith("/")) { targetFilePath = targetFilePath.Remove(0, 1); }
+            if (f.fileInfo.GetType() == typeof(DirectoryInfo))
+            {
+                sourceFilePath += "/";
+            }
+
+            targetFilePath = targetFilePath.Remove(0, MaiConstants.HomePath.Length);
+            if (targetFilePath.StartsWith("/")) { targetFilePath = targetFilePath.Remove(0, 1); }
+            if (f.fileInfo.GetType() == typeof(DirectoryInfo))
+            {
+                targetFilePath += "/";
+            }
+
+            var copyResult = await awsStorageService.CopyingObjectAsync(sourceFilePath, targetFilePath, f.bucketName, currentBucket);
+            if (copyResult == null) return false;
+            
+            if (option.Equals(FileSelectOption.Cut))
+            {
+                var deleteResult = await awsStorageService.DeleteObjectAsync(sourceFilePath, f.bucketName);
+                return deleteResult;
+            }
+            return true;
+        }
+
         internal async Task PasteModeAsync()
         {
             OperatedFileListView.Clear();
@@ -863,9 +893,25 @@ namespace MaiFileManager.Classes
                                         {
                                             num++;
                                         }
-                                    (f.fileInfo as FileInfo).MoveTo(string.Format("{0}{1}", targetFilePath, num));
-                                        File.Delete(targetFilePath);
-                                        File.Move(string.Format("{0}{1}", targetFilePath, num), targetFilePath);
+                                        if (IsHomePage)
+                                        {
+
+                                            if (!await PasteFileAndFolderForS3(f, string.Format("{0}{1}", targetFilePath, num), OperatedOption))
+                                            {
+                                                canceled = true;
+                                                OperatedFileListView.Remove(f);
+                                                OperatedErrorListView.Add(f);
+                                                OperatedPercent = (double)(OperatedFileList.Count - OperatedFileListView.Count) / OperatedFileList.Count;
+                                                continue;
+                                            }
+
+                                        }
+                                        else
+                                        {
+                                            (f.fileInfo as FileInfo).MoveTo(string.Format("{0}{1}", targetFilePath, num));
+                                            File.Delete(targetFilePath);
+                                            File.Move(string.Format("{0}{1}", targetFilePath, num), targetFilePath);
+                                        }
                                     }
                                     else
                                     {
@@ -878,7 +924,21 @@ namespace MaiFileManager.Classes
                                 }
                                 else
                                 {
-                                    (f.fileInfo as FileInfo).MoveTo(targetFilePath);
+                                    if (IsHomePage)
+                                    {
+                                        if (!await PasteFileAndFolderForS3(f, targetFilePath, OperatedOption))
+                                        {
+                                            canceled = true;
+                                            OperatedFileListView.Remove(f);
+                                            OperatedErrorListView.Add(f);
+                                            OperatedPercent = (double)(OperatedFileList.Count - OperatedFileListView.Count) / OperatedFileList.Count;
+                                            continue;
+                                        }
+                                    }
+                                    else
+                                    {
+                                        (f.fileInfo as FileInfo).MoveTo(targetFilePath);
+                                    }
                                 }
                                 if (!canceled && isInFavourite)
                                 {
@@ -900,7 +960,7 @@ namespace MaiFileManager.Classes
                                     {
                                         tmp = NavigatedPage;
                                     }
-                                    await tmp.Dispatcher.DispatchAsync(async () => { await tmp.DisplayAlert("Error", f.fileInfo.Name + "\nCannot cut to itself", "OK"); });
+                                    await tmp.Dispatcher.DispatchAsync(async () => { await tmp.DisplayAlert("Error", f.fileInfo.Name + "\nCannot move to itself", "OK"); });
                                     canceled = true;
                                     OperatedFileListView.Remove(f);
                                     OperatedErrorListView.Add(f);
@@ -925,7 +985,21 @@ namespace MaiFileManager.Classes
                                     OperatedPercent = (double)(OperatedFileList.Count - OperatedFileListView.Count) / OperatedFileList.Count;
                                     continue;
                                 }
-                                (f.fileInfo as DirectoryInfo).MoveTo(targetFilePath);
+                                if (IsHomePage)
+                                {
+                                    if (!await PasteFileAndFolderForS3(f, targetFilePath, OperatedOption))
+                                    {
+                                        canceled = true;
+                                        OperatedFileListView.Remove(f);
+                                        OperatedErrorListView.Add(f);
+                                        OperatedPercent = (double)(OperatedFileList.Count - OperatedFileListView.Count) / OperatedFileList.Count;
+                                        continue;
+                                    }
+                                }
+                                else
+                                {
+                                    (f.fileInfo as DirectoryInfo).MoveTo(targetFilePath);
+                                }
                                 if (!canceled && isInFavourite)
                                 {
                                     await AddOrRemoveFavouriteAsync(0, true, null, fileFullName, 1);
@@ -948,9 +1022,22 @@ namespace MaiFileManager.Classes
                                         {
                                             num++;
                                         }
-                                    (f.fileInfo as FileInfo).CopyTo(string.Format("{0}{1}", targetFilePath, num));
-                                        File.Delete(targetFilePath);
-                                        File.Move(string.Format("{0}{1}", targetFilePath, num), targetFilePath);
+                                        if (IsHomePage)
+                                        {
+                                            if (!await PasteFileAndFolderForS3(f, string.Format("{0}{1}", targetFilePath, num), OperatedOption))
+                                            {
+                                                OperatedFileListView.Remove(f);
+                                                OperatedErrorListView.Add(f);
+                                                OperatedPercent = (double)(OperatedFileList.Count - OperatedFileListView.Count) / OperatedFileList.Count;
+                                                continue;
+                                            }
+                                        }
+                                        else
+                                        {
+                                            (f.fileInfo as FileInfo).CopyTo(string.Format("{0}{1}", targetFilePath, num));
+                                            File.Delete(targetFilePath);
+                                            File.Move(string.Format("{0}{1}", targetFilePath, num), targetFilePath);
+                                        }
                                     }
                                     else
                                     {
@@ -962,7 +1049,20 @@ namespace MaiFileManager.Classes
                                 }
                                 else
                                 {
-                                    (f.fileInfo as FileInfo).CopyTo(targetFilePath);
+                                    if (IsHomePage)
+                                    {
+                                        if (!await PasteFileAndFolderForS3(f, targetFilePath, OperatedOption))
+                                        {
+                                            OperatedFileListView.Remove(f);
+                                            OperatedErrorListView.Add(f);
+                                            OperatedPercent = (double)(OperatedFileList.Count - OperatedFileListView.Count) / OperatedFileList.Count;
+                                            continue;
+                                        }
+                                    }
+                                    else
+                                    {
+                                        (f.fileInfo as FileInfo).CopyTo(targetFilePath);
+                                    }
                                 }
 
                             }
@@ -1005,7 +1105,20 @@ namespace MaiFileManager.Classes
                                         OperatedPercent = (double)(OperatedFileList.Count - OperatedFileListView.Count) / OperatedFileList.Count;
                                         continue;
                                     }
-                                    CopyDirectory((f.fileInfo as DirectoryInfo), CurrentDirectoryInfo.CurrentDir);
+                                    if (IsHomePage)
+                                    {
+                                        if (!await PasteFileAndFolderForS3(f, targetFilePath, OperatedOption))
+                                        {
+                                            OperatedFileListView.Remove(f);
+                                            OperatedErrorListView.Add(f);
+                                            OperatedPercent = (double)(OperatedFileList.Count - OperatedFileListView.Count) / OperatedFileList.Count;
+                                            continue;
+                                        }
+                                    }
+                                    else
+                                    {
+                                        CopyDirectory((f.fileInfo as DirectoryInfo), CurrentDirectoryInfo.CurrentDir);
+                                    }
                                 }
                             }
                             break;
