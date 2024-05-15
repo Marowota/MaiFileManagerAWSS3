@@ -44,22 +44,22 @@ namespace MaiFileManager.Classes.Aws
         }
 
 
-        public async Task CheckSignedIn()
-        {
+        //public async Task CheckSignedIn()
+        //{
 
-            if (awsCredentials.AwsSecretKey == null || awsCredentials.AwsKey == null || awsCredentials.AwsSecretKey == "" || awsCredentials.AwsKey == "")
-            {
-                throw new Exception("Not signed in");
-            }
-            try
-            {
-                await GetBuckets();
-            }
-            catch
-            {
-                throw new Exception("Access denied, please check your credential");
-            }
-        }
+        //    if (awsCredentials.AwsSecretKey == null || awsCredentials.AwsKey == null || awsCredentials.AwsSecretKey == "" || awsCredentials.AwsKey == "")
+        //    {
+        //        throw new Exception("Not signed in");
+        //    }
+        //    try
+        //    {
+        //        await GetBuckets();
+        //    }
+        //    catch
+        //    {
+        //        throw new Exception("Access denied, please check your credential");
+        //    }
+        //}
 
         public async Task SendNotification(string title, string message, string cancel)
         {
@@ -73,9 +73,9 @@ namespace MaiFileManager.Classes.Aws
             try
             {
                 var request = new ListBucketsRequest();
-                var response =  await client.ListBucketsAsync(request);
+                var response =  await client.GetBucketLocationAsync(bucketName);
 
-                return response.Buckets.Any(b => b.BucketName == bucketName);
+                return response.HttpStatusCode == System.Net.HttpStatusCode.OK;
             }
             catch (AmazonS3Exception ex)
             {
