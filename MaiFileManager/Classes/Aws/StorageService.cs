@@ -371,7 +371,7 @@ namespace MaiFileManager.Classes.Aws
         }
 
 
-        public async Task<List<S3Object>> ListAllFileInPath(string path)
+        public async Task<List<S3Object>> ListAllFileInPath(string path, CancellationToken cancellationToken = default)
         {
 
             try
@@ -388,18 +388,20 @@ namespace MaiFileManager.Classes.Aws
 
                 ListObjectsV2Response response;
 
-                response = await client.ListObjectsV2Async(request);
+                response = await client.ListObjectsV2Async(request, cancellationToken);
 
-
+                cancellationToken.ThrowIfCancellationRequested();
                 List<S3Object> s3Objects = response.S3Objects ?? new List<S3Object>();
                 Debug.WriteLine($"Found {s3Objects.Count} objects in {bucketName} with path {path}.");
                 foreach (var item in s3Objects)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     Debug.WriteLine($"key = {item.Key} size = {item.Size}");
                 }
 
                 for (int i = s3Objects.Count - 1; i >= 0; i--)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     S3Object s3Object = s3Objects[i];
                     string tmp = s3Object.Key.Remove(0, path.Length);
                     if (tmp.StartsWith("/"))
@@ -419,6 +421,7 @@ namespace MaiFileManager.Classes.Aws
                 Debug.WriteLine($"Found {s3Objects.Count} objects in {bucketName} with path {path} after removal.");
                 foreach (var item in s3Objects)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     Debug.WriteLine($"key = {item.Key} size = {item.Size}");
                 }
                 
@@ -440,6 +443,16 @@ namespace MaiFileManager.Classes.Aws
             {
                 Debug.WriteLine($"Error encountered on server. Message:'{ex.Message}' when checking bucket.");
                 await SendNotification("Error", "Can't connect to S3 Service, check your internet connection", "OK");
+                return new List<S3Object>();
+            }
+            catch (System.OperationCanceledException ex)
+            {
+                System.Diagnostics.Debug.WriteLine("Canceled loading file");
+                return new List<S3Object>();
+            }
+            catch (Android.OS.OperationCanceledException ex)
+            {
+                System.Diagnostics.Debug.WriteLine("Canceled loading file");
                 return new List<S3Object>();
             }
             catch (Exception ex)

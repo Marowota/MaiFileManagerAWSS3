@@ -279,7 +279,7 @@ public partial class HomePage : ContentPage
             await FileListObj.RenameModeAsync(path, result); 
             if (!IsSearched)
             {
-                await Task.Run(FileListObj.UpdateFileListAsync);
+                await Task.Run(() => FileListObj.UpdateFileListAsync());
             }
             else
             {
@@ -297,7 +297,7 @@ public partial class HomePage : ContentPage
         SwipeFileBox.IsVisible = false;
         if (!IsSearched)
         {
-            await Task.Run(FileListObj.UpdateFileListAsync);
+            await Task.Run(() => FileListObj.UpdateFileListAsync());
         }
         else
         {
