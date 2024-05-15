@@ -9,19 +9,24 @@ namespace MaiFileManager.Classes.Aws
 {
     internal class StorageService : IStorageService
     {
+        public enum GenerateFileViewMode
+        {
+            View,
+            Search
+        }
 
         private AwsCredentials awsCredentials;
         private AmazonS3Client client;
         internal string bucketName;
 
-        public StorageService(AwsCredentials awsCredentials, string bucketName = "", RegionEndpoint region = null)
+        internal StorageService(AwsCredentials awsCredentials, string bucketName = "", RegionEndpoint region = null)
         {
             this.awsCredentials = awsCredentials;
             this.client = GetClient(awsCredentials, region);
             this.bucketName = bucketName;
         }
 
-        public AmazonS3Client GetClient(AwsCredentials awsCredentials, RegionEndpoint region)
+        internal AmazonS3Client GetClient(AwsCredentials awsCredentials, RegionEndpoint region)
         {
             var credentials = new BasicAWSCredentials(awsCredentials.AwsKey, awsCredentials.AwsSecretKey);
 
@@ -32,13 +37,13 @@ namespace MaiFileManager.Classes.Aws
             return new AmazonS3Client(credentials, config);
         }
 
-        public void ChangeCredential(AwsCredentials credentials, RegionEndpoint region = null)
+        internal void ChangeCredential(AwsCredentials credentials, RegionEndpoint region = null)
         {
             awsCredentials = credentials;
             client = GetClient(awsCredentials, region);
         }
 
-        public async Task<ListBucketsResponse> GetBuckets()
+        internal async Task<ListBucketsResponse> GetBuckets()
         {
             return await client.ListBucketsAsync();
         }
@@ -61,13 +66,13 @@ namespace MaiFileManager.Classes.Aws
         //    }
         //}
 
-        public async Task SendNotification(string title, string message, string cancel)
+        internal async Task SendNotification(string title, string message, string cancel)
         {
             Page tmp = Shell.Current.CurrentPage;
             await tmp.Dispatcher.DispatchAsync(async () =>
                 await tmp.DisplayAlert(title, message, cancel));
         }
-        public async Task<bool> IsBucketExist(string bucketName)
+        internal async Task<bool> IsBucketExist(string bucketName)
         {
             
             try
@@ -104,7 +109,7 @@ namespace MaiFileManager.Classes.Aws
             }
         }
 
-        public async Task<bool> CreateBucket(string bucketName)
+        internal async Task<bool> CreateBucket(string bucketName)
         {
             try
             {
@@ -146,7 +151,7 @@ namespace MaiFileManager.Classes.Aws
             }
         }
 
-        public async Task<bool> CheckAndCreateBucket (string bucketName)
+        internal async Task<bool> CheckAndCreateBucket (string bucketName)
         {
             if (!(await IsBucketExist(bucketName)))
             {
@@ -155,7 +160,7 @@ namespace MaiFileManager.Classes.Aws
             return true;
         }
 
-        public async Task<String> DownloadObjectFromBucketAsync(string objectName, string filePath, CancellationToken cancellationToken)
+        internal async Task<String> DownloadObjectFromBucketAsync(string objectName, string filePath, CancellationToken cancellationToken)
         {
             if (await CheckAndCreateBucket(bucketName) == false)
             {
@@ -227,7 +232,7 @@ namespace MaiFileManager.Classes.Aws
         }
 
 
-        public async Task<bool> UploadFileAsync(string objectName, string filePath, string savedPath)
+        internal async Task<bool> UploadFileAsync(string objectName, string filePath, string savedPath)
         {
             if (await CheckAndCreateBucket(bucketName) == false)
             {
@@ -254,7 +259,7 @@ namespace MaiFileManager.Classes.Aws
             }
         }
 
-        public async Task<bool> DeleteObjectAsync(string path, string bucket = null)
+        internal async Task<bool> DeleteObjectAsync(string path, string bucket = null)
         {
             if (await CheckAndCreateBucket(bucketName) == false)
             {
@@ -312,7 +317,7 @@ namespace MaiFileManager.Classes.Aws
             }
         }
 
-        public async Task<CopyObjectResponse> CopyingObjectAsync(
+        internal async Task<CopyObjectResponse> CopyingObjectAsync(
                         string sourceKey,
                         string destinationKey,
                         string sourceBucketName,
@@ -371,7 +376,7 @@ namespace MaiFileManager.Classes.Aws
         }
 
 
-        public async Task<List<S3Object>> ListAllFileInPath(string path, CancellationToken cancellationToken = default)
+        internal async Task<List<S3Object>> ListAllFileInPath(string path, GenerateFileViewMode mode, string searchValue = "", CancellationToken cancellationToken = default)
         {
 
             try
@@ -399,26 +404,57 @@ namespace MaiFileManager.Classes.Aws
                     Debug.WriteLine($"key = {item.Key} size = {item.Size}");
                 }
 
-                for (int i = s3Objects.Count - 1; i >= 0; i--)
+                if (mode == GenerateFileViewMode.View)
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    S3Object s3Object = s3Objects[i];
-                    string tmp = s3Object.Key.Remove(0, path.Length);
-                    if (tmp.StartsWith("/"))
+                    for (int i = s3Objects.Count - 1; i >= 0; i--)
                     {
-                        tmp = tmp.Remove(0, 1);
+                        cancellationToken.ThrowIfCancellationRequested();
+                        S3Object s3Object = s3Objects[i];
+                        string tmp = s3Object.Key.Remove(0, path.Length);
+                        if (tmp.StartsWith("/"))
+                        {
+                            tmp = tmp.Remove(0, 1);
+                        }
+
+                        Debug.WriteLine("checking" + tmp);
+
+                        if (!((tmp.EndsWith("/") && tmp.LastIndexOf('/') == tmp.IndexOf('/'))
+                            || tmp.IndexOf('/') == -1) || tmp.Length == 0)
+                        {
+                            s3Objects.RemoveAt(i);
+                        }
                     }
-
-                    Debug.WriteLine("checking" + tmp);
-
-                    if (!((tmp.EndsWith("/") && tmp.LastIndexOf('/') == tmp.IndexOf('/')) 
-                        || tmp.IndexOf('/') == -1 ) || tmp.Length == 0)
+                    Debug.WriteLine($"Found {s3Objects.Count} objects in {bucketName} with path {path} after removal.");
+                }
+                else if (mode == GenerateFileViewMode.Search)
+                {
+                    for (int i = s3Objects.Count - 1; i >= 0; i--)
                     {
-                        s3Objects.RemoveAt(i);
+                        cancellationToken.ThrowIfCancellationRequested();
+                        S3Object s3Object = s3Objects[i];
+                        string tmp = s3Object.Key;
+                        if (tmp.EndsWith('/'))
+                        {
+                            tmp = tmp.Remove(tmp.Length - 1);
+                        }
+                        if (tmp.LastIndexOf('/') != -1)
+                        {
+                            tmp.Remove(0, tmp.LastIndexOf('/'));
+                        }
+                        if (tmp.StartsWith("/"))
+                        {
+                            tmp = tmp.Remove(0, 1);
+                        }
+                        Debug.WriteLine("checking" + tmp);
+
+                        if (tmp.Length == 0)
+                        {
+                            s3Objects.RemoveAt(i);
+                        }
+
                     }
                 }
-                
-                Debug.WriteLine($"Found {s3Objects.Count} objects in {bucketName} with path {path} after removal.");
+
                 foreach (var item in s3Objects)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
@@ -461,6 +497,58 @@ namespace MaiFileManager.Classes.Aws
                 await SendNotification("Error", $"Application Message:'{ex.Message}'", "OK");
                 return new List<S3Object>();
             }
+        }
+
+        internal async Task<bool> CreateFolder(string bucketName, string folderFullName)
+        {
+            try
+            {
+
+                if (await CheckAndCreateBucket(bucketName) == false)
+                {
+                    return false;
+                }
+
+                var folderKey = folderFullName;
+
+                var request = new PutObjectRequest()
+                {
+                    BucketName = bucketName,
+                    StorageClass = S3StorageClass.Standard,
+                    ServerSideEncryptionMethod = ServerSideEncryptionMethod.None,
+                    CannedACL = S3CannedACL.Private,
+                    Key = folderKey,
+                    ContentBody = string.Empty
+                };
+
+                var response = await client.PutObjectAsync(request);
+                return response.HttpStatusCode == HttpStatusCode.OK;
+            }
+            catch (AmazonS3Exception ex)
+            {
+                Debug.WriteLine($"Error encountered on server. Message:'{ex.Message}' when creating folder an object.");
+                await SendNotification("Error", $"AWS S3 Message:'{ex.Message}'", "OK");
+                return false;
+            }
+            catch (AmazonServiceException ex)
+            {
+                Debug.WriteLine($"Error encountered on server. Message:'{ex.Message}' when creating folder an object.");
+                await SendNotification("Error", $"AWS Message:'{ex.Message}'", "OK");
+                return false;
+            }
+            catch (WebException ex)
+            {
+                Debug.WriteLine($"Error encountered on server. Message:'{ex.Message}' when creating folder bucket.");
+                await SendNotification("Error", "Can't connect to S3 Service, check your internet connection", "OK");
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error encountered on server. Message:'{ex.Message}' when creating folder an object.");
+                await SendNotification("Error", $"Application Message:'{ex.Message}'", "OK");
+                return false;
+            }
+
         }
 
     }

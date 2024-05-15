@@ -109,12 +109,14 @@
                 StrokeShape="RoundRectangle 0,0,5,5"
                 StrokeThickness="1"
                 IsVisible="false">
-            <StackLayout>
+            <VerticalStackLayout>
                 <SearchBar x:Name="SearchBarFile"
                        HorizontalOptions="FillAndExpand"
                        SearchButtonPressed="SearchBarFile_SearchButtonPressed"
-                       Placeholder="Search file/folder..."/>
-            </StackLayout>
+                       Placeholder="Search file/folder..."
+                       BindingContext="{x:Reference Name=SearchBarBorder}"
+                       WidthRequest="{Binding Width}"/>
+            </VerticalStackLayout>
         </Border>
         <Label x:Name="PathLbl"
                HeightRequest="30"

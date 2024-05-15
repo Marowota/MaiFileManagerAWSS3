@@ -63,6 +63,7 @@ namespace MaiFileManager.Classes
         public bool IsHomePage { get; set; } = false;
         private StorageService awsStorageService = new StorageService(new AwsCredentials(), Preferences.Default.Get("Aws_Bucket_name", ""));
         private List<S3Object> currentS3List = new List<S3Object>();
+        private List<FileSystemInfoWithIcon> currentS3ListFileWIcon = new List<FileSystemInfoWithIcon>();
         public string currentBucket = "";
         CancellationTokenSource prevToken = null;
 
@@ -297,7 +298,9 @@ namespace MaiFileManager.Classes
         }
 
 
-        internal async Task GenerateFileViewAsync(CancellationToken cancellationToken = default)
+        internal async Task GenerateFileViewAsync(StorageService.GenerateFileViewMode mode = StorageService.GenerateFileViewMode.View, 
+                                                    CancellationToken cancellationToken = default, 
+                                                    string searchValue = "")
         {
             currentBucket = awsStorageService.bucketName;
             awsStorageService = new StorageService(new AwsCredentials(), Preferences.Default.Get("Aws_Bucket_name", ""));
@@ -317,7 +320,7 @@ namespace MaiFileManager.Classes
             if (awsPath.StartsWith("/")) { awsPath = awsPath.Remove(0, 1); }
             List<S3Object> s3Objects = new List<S3Object>(); 
             cancellationToken.ThrowIfCancellationRequested();
-            s3Objects = await awsStorageService.ListAllFileInPath(awsPath, cancellationToken);
+            s3Objects = await awsStorageService.ListAllFileInPath(awsPath, mode, searchValue, cancellationToken);
             currentS3List = s3Objects;
 
             DirectoryInfo currentDir = new DirectoryInfo(CurrentDirectoryInfo.CurrentDir);
@@ -359,6 +362,7 @@ namespace MaiFileManager.Classes
 
                 await Task.Run(() =>
                 {
+                    currentS3ListFileWIcon.Clear();
                     foreach (S3Object s3Object in s3Objects)
                     {
                         cancellationToken.ThrowIfCancellationRequested();
@@ -368,10 +372,18 @@ namespace MaiFileManager.Classes
                         if (s3Object.Size == 0 && s3Object.Key.EndsWith('/'))
                         {
                             Directory.CreateDirectory(path);
+                            currentS3ListFileWIcon.Add(new FileSystemInfoWithIcon(new DirectoryInfo(path), "folder.png", 45));
+                            currentS3ListFileWIcon[currentS3ListFileWIcon.Count - 1].ConvertFileInfoSize(s3Object.Size);
+                            currentS3ListFileWIcon[currentS3ListFileWIcon.Count - 1].bucketName = currentBucket;
+                            currentS3ListFileWIcon[currentS3ListFileWIcon.Count - 1].ConvertFileLastModified(s3Object.LastModified);
                         }
                         else
                         {
                             File.Create(path);
+                            currentS3ListFileWIcon.Add(new FileSystemInfoWithIcon(new FileInfo(path), MaiIcon.GetIcon(Path.GetExtension(path)), 40));
+                            currentS3ListFileWIcon[currentS3ListFileWIcon.Count - 1].ConvertFileInfoSize(s3Object.Size);
+                            currentS3ListFileWIcon[currentS3ListFileWIcon.Count - 1].bucketName = currentBucket;
+                            currentS3ListFileWIcon[currentS3ListFileWIcon.Count - 1].ConvertFileLastModified(s3Object.LastModified);
                         }
                     }
                 });
@@ -390,18 +402,18 @@ namespace MaiFileManager.Classes
             return string.Compare(x.Key, y.Key, StringComparison.OrdinalIgnoreCase);
         }
 
-        internal void LoadSizeAndDateForS3(List<FileSystemInfoWithIcon> listFile, CancellationToken cancellationToken = default)
-        {
-            currentS3List.Sort(S3SortFileComparisonNameAZ);
-            listFile.Sort(SortFileComparisonNameAZ);
-            if (currentS3List.Count != listFile.Count) return;
-            for (int i = 0; i < listFile.Count; i++)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                listFile[i].ConvertFileInfoSize(currentS3List[i].Size);
-                listFile[i].ConvertFileLastModified(currentS3List[i].LastModified);
-            }
-        }
+        //internal void LoadSizeAndDateForS3(List<FileSystemInfoWithIcon> listFile, CancellationToken cancellationToken = default)
+        //{
+        //    currentS3List.Sort(S3SortFileComparisonNameAZ);
+        //    listFile.Sort(SortFileComparisonNameAZ);
+        //    if (currentS3List.Count != listFile.Count) return;
+        //    for (int i = 0; i < listFile.Count; i++)
+        //    {
+        //        cancellationToken.ThrowIfCancellationRequested();
+        //        listFile[i].ConvertFileInfoSize(currentS3List[i].Size);
+        //        listFile[i].ConvertFileLastModified(currentS3List[i].LastModified);
+        //    }
+        //}
 
         internal async Task UpdateFileListAsync()
         {
@@ -478,36 +490,42 @@ namespace MaiFileManager.Classes
                     {
                         cancellationToken.ThrowIfCancellationRequested();
                         CurrentFileList.Clear();
+
+                        List<FileSystemInfoWithIcon> tempFileList = new List<FileSystemInfoWithIcon>();
                         if (IsHomePage)
                         {
-                            await GenerateFileViewAsync(cancellationToken);
-                        }
-                        List<FileSystemInfoWithIcon> tempFileList = new List<FileSystemInfoWithIcon>();
-                        foreach (FileSystemInfo info in CurrentDirectoryInfo.GetListFile().ToList())
-                        {
-                            cancellationToken.ThrowIfCancellationRequested();
-                            await Task.Run(() =>
+                            await GenerateFileViewAsync(cancellationToken: cancellationToken);
+                            await Task.Run(async () =>
                             {
-                                if (string.Equals(info.FullName, "/storage/emulated/0/android", StringComparison.CurrentCultureIgnoreCase)
-                                    && Build.VERSION.SdkInt >= BuildVersionCodes.R)
-                                {
+                                cancellationToken.ThrowIfCancellationRequested();
+                                tempFileList = new List<FileSystemInfoWithIcon>(currentS3ListFileWIcon);
 
-                                }
-                                else if (info.GetType() == typeof(FileInfo))
-                                {
-                                    tempFileList.Add(new FileSystemInfoWithIcon(info, MaiIcon.GetIcon(info.Extension), 40));
-                                }
-                                else if (info.GetType() == typeof(DirectoryInfo))
-                                {
-                                    tempFileList.Add(new FileSystemInfoWithIcon(info, "folder.png", 45));
-                                }
                             });
                         }
-                        if (IsHomePage)
+                        else
                         {
-                            cancellationToken.ThrowIfCancellationRequested();
-                            LoadSizeAndDateForS3(tempFileList);
+                            foreach (FileSystemInfo info in CurrentDirectoryInfo.GetListFile().ToList())
+                            {
+                                cancellationToken.ThrowIfCancellationRequested();
+                                await Task.Run(() =>
+                                {
+                                    if (string.Equals(info.FullName, "/storage/emulated/0/android", StringComparison.CurrentCultureIgnoreCase)
+                                        && Build.VERSION.SdkInt >= BuildVersionCodes.R)
+                                    {
+
+                                    }
+                                    else if (info.GetType() == typeof(FileInfo))
+                                    {
+                                        tempFileList.Add(new FileSystemInfoWithIcon(info, MaiIcon.GetIcon(info.Extension), 40));
+                                    }
+                                    else if (info.GetType() == typeof(DirectoryInfo))
+                                    {
+                                        tempFileList.Add(new FileSystemInfoWithIcon(info, "folder.png", 45));
+                                    }
+                                });
+                            }
                         }
+
                         tempFileList = SortFileMode(tempFileList);
 
                         foreach (FileSystemInfoWithIcon f in tempFileList)
@@ -515,7 +533,6 @@ namespace MaiFileManager.Classes
                             cancellationToken.ThrowIfCancellationRequested();
                             await Task.Run(() =>
                             {
-                                f.bucketName = currentBucket;
                                 CurrentFileList.Add(f);
                             });
                         }
@@ -588,7 +605,10 @@ namespace MaiFileManager.Classes
                 if (selected == null)
                     return -1;
                 int deep = 0;
-                string tmp = selected.FullName;
+                string fullPathName = selected.FullName.EndsWith('/') ? 
+                    selected.FullName.Remove(selected.FullName.Length - 1) : selected.FullName;
+
+                string tmp = fullPathName;
                 if (BackDeep == 0 && IsFavouriteMode)
                 {
                     deep++;
@@ -603,9 +623,12 @@ namespace MaiFileManager.Classes
                         deep++;
                     }
                 }
-                CurrentDirectoryInfo.UpdateDir(selected.FullName);
-                UpdateBackDeep(deep);
-                await Task.Run(async() => await UpdateFileListAsync());
+                await Task.Run(() =>
+                {
+                    CurrentDirectoryInfo.UpdateDir(fullPathName);
+                    UpdateBackDeep(deep);
+                });
+                await Task.Run(UpdateFileListAsync);
                 return 1;
             }
             return -1;
@@ -773,10 +796,6 @@ namespace MaiFileManager.Classes
                     {
                         string sourceFilePath = f.fileInfo.FullName.Remove(0, MaiConstants.HomePath.Length + 1);
                         if (sourceFilePath.StartsWith("/")) { sourceFilePath = sourceFilePath.Remove(0, 1); }
-                        if (f.fileInfo.GetType() == typeof(DirectoryInfo))
-                        {
-                            sourceFilePath += "/";
-                        }
 
                         var deleteResult = await awsStorageService.DeleteObjectAsync(sourceFilePath, f.bucketName);
                         if (!deleteResult)
@@ -814,7 +833,7 @@ namespace MaiFileManager.Classes
             bool isInFavourite = await IsInFavouriteAsync(path);
             if (Directory.Exists(path))
             {
-                string newPath = Path.Combine(Directory.GetParent(path).FullName, newName);
+                string newPath = Path.Combine(new DirectoryInfo(path).Parent.FullName, newName) + "/";
                 if (Directory.Exists(newPath) || File.Exists(newPath))
                 {
                     Page tmp;
@@ -912,19 +931,13 @@ namespace MaiFileManager.Classes
         internal async Task<bool> PasteFileAndFolderForS3(FileSystemInfoWithIcon f, string targetFilePath, FileSelectOption option)
         {
 
-            string sourceFilePath = f.fileInfo.FullName.Remove(0, MaiConstants.HomePath.Length + 1);
+            string sourceFilePath = f.fileInfo.FullName.Remove(0, MaiConstants.HomePath.Length);
             if (sourceFilePath.StartsWith("/")) { sourceFilePath = sourceFilePath.Remove(0, 1); }
-            if (f.fileInfo.GetType() == typeof(DirectoryInfo))
-            {
-                sourceFilePath += "/";
-            }
+
 
             targetFilePath = targetFilePath.Remove(0, MaiConstants.HomePath.Length);
             if (targetFilePath.StartsWith("/")) { targetFilePath = targetFilePath.Remove(0, 1); }
-            if (f.fileInfo.GetType() == typeof(DirectoryInfo))
-            {
-                targetFilePath += "/";
-            }
+
 
             var copyResult = await awsStorageService.CopyingObjectAsync(sourceFilePath, targetFilePath, f.bucketName, currentBucket);
             if (copyResult == null) return false;
@@ -1027,7 +1040,7 @@ namespace MaiFileManager.Classes
                             }
                             else if (f.fileInfo.GetType() == typeof(DirectoryInfo))
                             {
-                                string targetFilePath = Path.Combine(CurrentDirectoryInfo.CurrentDir, f.fileInfo.Name);
+                                string targetFilePath = Path.Combine(CurrentDirectoryInfo.CurrentDir, f.fileInfo.Name) + "/";
                                 if (IsDirectoryContainDirectory(f.fileInfo.FullName, CurrentDirectoryInfo.CurrentDir))
                                 {
                                     Page tmp;
@@ -1166,7 +1179,7 @@ namespace MaiFileManager.Classes
                                 }
                                 else
                                 {
-                                    string targetFilePath = Path.Combine(CurrentDirectoryInfo.CurrentDir, f.fileInfo.Name);
+                                    string targetFilePath = Path.Combine(CurrentDirectoryInfo.CurrentDir, f.fileInfo.Name) + "/";
                                     if (File.Exists(targetFilePath))
                                     {
                                         Page tmp;
@@ -1216,7 +1229,7 @@ namespace MaiFileManager.Classes
                 await Shell.Current.DisplayAlert("Invalid", "Invalid folder name, please choose another name", "OK");
                 return false;
             }
-            string path = Path.Combine(CurrentDirectoryInfo.CurrentDir, name);
+            string path = Path.Combine(CurrentDirectoryInfo.CurrentDir, name) + "/";
             if (Directory.Exists(path))
             {
                 await Shell.Current.DisplayAlert("Duplicated", "Duplicate folder name, please choose another name", "OK");
@@ -1227,46 +1240,107 @@ namespace MaiFileManager.Classes
                 await Shell.Current.DisplayAlert("Duplicated", "Duplicate with another file name, please choose another name", "OK");
                 return false;
             }
-            Directory.CreateDirectory(path);
+            if (IsHomePage)
+            {
+                string awsFolderPath = path.Remove(0, MaiConstants.HomePath.Length + 1);
+                if (awsFolderPath.StartsWith("/")) { awsFolderPath = awsFolderPath.Remove(0, 1); }
+                await awsStorageService.CreateFolder(currentBucket, awsFolderPath);
+            }
+            else
+            {
+                Directory.CreateDirectory(path);
+            }
             await UpdateFileListAsync();
             return true;
         }
         internal async Task SearchFileListAsync(string value)
         {
             IsReloading = true;
-            DirectoryInfo dir = new DirectoryInfo(CurrentDirectoryInfo.CurrentDir);
 
-            IEnumerable<System.IO.DirectoryInfo> directoryList = null;
-            IEnumerable<System.IO.FileInfo> fileList = null;
-            await Task.Run(async () =>
+            if (prevToken != null)
             {
-                CurrentFileList.Clear();
-                directoryList = dir.GetDirectories("**", System.IO.SearchOption.AllDirectories)
-                                   .Where(dirInfo
-                                    => dirInfo.Name.Contains(value, StringComparison.OrdinalIgnoreCase));
-                foreach (DirectoryInfo directoryInfo in directoryList)
+                prevToken.Cancel();
+            }
+            CancellationTokenSource loadFileToken = new CancellationTokenSource();
+            prevToken = loadFileToken;
+            CancellationToken cancellationToken = loadFileToken.Token;
+
+            try
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                DirectoryInfo dir = new DirectoryInfo(CurrentDirectoryInfo.CurrentDir);
+                IEnumerable<System.IO.DirectoryInfo> directoryList = null;
+                IEnumerable<System.IO.FileInfo> fileList = null;
+                await Task.Run(async () =>
                 {
-                    CurrentFileList.Add(new FileSystemInfoWithIcon(directoryInfo, "folder.png", 45));
-                }
-                fileList = dir.GetFiles("**", System.IO.SearchOption.AllDirectories)
-                              .Where(fileInfo
-                              => fileInfo.Name.Contains(value, StringComparison.OrdinalIgnoreCase));
-                foreach (FileInfo fileInfo in fileList)
-                {
-                    await Task.Run(() =>
+                    cancellationToken.ThrowIfCancellationRequested();
+                    CurrentFileList.Clear();
+                    List<FileSystemInfoWithIcon> tempFileList = new List<FileSystemInfoWithIcon>();
+
+
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (IsHomePage)
                     {
-                        CurrentFileList.Add(new FileSystemInfoWithIcon(fileInfo, MaiIcon.GetIcon(fileInfo.Extension), 40));
-                    });
-                }
-                if (IsSelectionMode)
-                {
-                    foreach (FileSystemInfoWithIcon f in CurrentFileList)
-                    {
-                        f.CheckBoxSelectVisible = true;
+                        await GenerateFileViewAsync(StorageService.GenerateFileViewMode.Search, cancellationToken, value);
                     }
-                }
-                NumberOfCheked = 0;
-            });
+
+                    directoryList = dir.GetDirectories("**", System.IO.SearchOption.AllDirectories)
+                                        .Where(dirInfo
+                                        => dirInfo.Name.Contains(value, StringComparison.OrdinalIgnoreCase));
+                    foreach (DirectoryInfo directoryInfo in directoryList)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+
+                        await Task.Run(() =>
+                        {
+
+                            tempFileList.Add(currentS3ListFileWIcon.Find(e => e.fileInfo.FullName == directoryInfo.FullName + "/"));
+                        });
+                    }
+                    cancellationToken.ThrowIfCancellationRequested();
+                    fileList = dir.GetFiles("**", System.IO.SearchOption.AllDirectories)
+                                    .Where(fileInfo
+                                    => fileInfo.Name.Contains(value, StringComparison.OrdinalIgnoreCase));
+
+                    foreach (FileInfo fileInfo in fileList)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        await Task.Run(() =>
+                        {
+                            tempFileList.Add(currentS3ListFileWIcon.Find(e => e.fileInfo.FullName == fileInfo.FullName));
+                        });
+                    }
+
+                    foreach (FileSystemInfoWithIcon f in tempFileList)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        await Task.Run(() =>
+                        {
+                            CurrentFileList.Add(f);
+                        });
+                    }
+
+                    if (IsSelectionMode)
+                    {
+                        foreach (FileSystemInfoWithIcon f in CurrentFileList)
+                        {
+                            cancellationToken.ThrowIfCancellationRequested();
+                            f.CheckBoxSelectVisible = true;
+                        }
+                    }
+                    NumberOfCheked = 0;
+                });
+            }
+            catch (System.OperationCanceledException ex)
+            {
+                System.Diagnostics.Debug.WriteLine("Canceled loading file");
+                return;
+            }
+            catch (Android.OS.OperationCanceledException ex)
+            {
+                System.Diagnostics.Debug.WriteLine("Canceled loading file");
+                return;
+            }
             IsReloading = false;
         }
         internal bool IsValidFileName(string name)
