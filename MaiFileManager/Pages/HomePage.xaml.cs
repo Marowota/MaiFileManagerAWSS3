@@ -405,7 +405,14 @@ public partial class HomePage : ContentPage
         string asResult = await Shell.Current.DisplayActionSheet("Sort by", "Cancel", null, sortby);
         if (asResult == "Cancel" || asResult == null) return;
         FileListObj.SortMode = (FileList.FileSortMode)sortby.ToList().IndexOf(asResult);
-        await FileListObj.UpdateFileListAsync();
+        if (SearchBarFile.Text == null || SearchBarFile.Text == "")
+        {
+            await FileListObj.UpdateFileListAsync();
+        }
+        else
+        {
+            SearchBarFile_SearchButtonPressed(SearchBarFile, null);
+        }
     }
 
     private async void AddFavourite_Clicked(object sender, EventArgs e)

@@ -1311,6 +1311,8 @@ namespace MaiFileManager.Classes
                         });
                     }
 
+                    SortFileMode(tempFileList);
+
                     foreach (FileSystemInfoWithIcon f in tempFileList)
                     {
                         cancellationToken.ThrowIfCancellationRequested();
