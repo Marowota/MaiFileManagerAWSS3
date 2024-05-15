@@ -735,13 +735,35 @@ namespace MaiFileManager.Classes
             {
                 if (f.CheckBoxSelected)
                 {
-                    if (f.fileInfo.GetType() == typeof(FileInfo))
+                    if (IsHomePage)
                     {
-                        (f.fileInfo as FileInfo).Delete();
+                        string sourceFilePath = f.fileInfo.FullName.Remove(0, MaiConstants.HomePath.Length + 1);
+                        if (sourceFilePath.StartsWith("/")) { sourceFilePath = sourceFilePath.Remove(0, 1); }
+                        if (f.fileInfo.GetType() == typeof(DirectoryInfo))
+                        {
+                            sourceFilePath += "/";
+                        }
+
+                        var deleteResult = await awsStorageService.DeleteObjectAsync(sourceFilePath, f.bucketName);
+                        if (!deleteResult)
+                        {
+                            tmpDone++;
+                            OperatedFileListView.Remove(f);
+                            OperatedErrorListView.Add(f);
+                            OperatedPercent = (double)tmpDone / tmpInit;
+                            continue;
+                        }
                     }
-                    else if (f.fileInfo.GetType() == typeof(DirectoryInfo))
+                    else
                     {
-                        (f.fileInfo as DirectoryInfo).Delete(true);
+                        if (f.fileInfo.GetType() == typeof(FileInfo))
+                        {
+                            (f.fileInfo as FileInfo).Delete();
+                        }
+                        else if (f.fileInfo.GetType() == typeof(DirectoryInfo))
+                        {
+                            (f.fileInfo as DirectoryInfo).Delete(true);
+                        }
                     }
                     tmpDone++;
                     OperatedFileListView.Remove(f);
@@ -777,12 +799,28 @@ namespace MaiFileManager.Classes
                     });
                     return;
                 }
+                
+                if (IsHomePage)
+                {
+                    FileSystemInfo fsi = new DirectoryInfo(path);
+                    FileSystemInfoWithIcon f = new FileSystemInfoWithIcon(fsi, "folder.png", 45);
+                    f.bucketName = currentBucket;
+                    if (!await PasteFileAndFolderForS3(f, newPath, FileSelectOption.Cut))
+                    {
+                        return;
+                    }
+                }
+                else
+                {
+                    Directory.Move(path, newPath);
+                }
+
                 if (isInFavourite)
                 {
                     FileSystemInfo f = new DirectoryInfo(path);
                     await AddOrRemoveFavouriteAsync(0, true, f);
                 }
-                Directory.Move(path, newPath);
+
                 if (isInFavourite)
                 {
                     FileSystemInfo f = new DirectoryInfo(newPath);
@@ -810,12 +848,25 @@ namespace MaiFileManager.Classes
                     });
                     return;
                 }
+                if (IsHomePage)
+                {
+                    FileSystemInfo fsi = new FileInfo(path);
+                    FileSystemInfoWithIcon f = new FileSystemInfoWithIcon(fsi, "folder.png", 45);
+                    f.bucketName = currentBucket;
+                    if (!await PasteFileAndFolderForS3(f, newPath, FileSelectOption.Cut))
+                    {
+                        return;
+                    }
+                }
+                else
+                {
+                    File.Move(path, newPath);
+                }
                 if (isInFavourite)
                 {
                     FileSystemInfo f = new FileInfo(path);
                     await AddOrRemoveFavouriteAsync(0, true, f);
                 }
-                File.Move(path, newPath);
                 if (isInFavourite)
                 {
                     FileSystemInfo f = new FileInfo(newPath);
@@ -828,7 +879,7 @@ namespace MaiFileManager.Classes
         {
 
             string sourceFilePath = f.fileInfo.FullName.Remove(0, MaiConstants.HomePath.Length + 1);
-            if (sourceFilePath.StartsWith("/")) { targetFilePath = targetFilePath.Remove(0, 1); }
+            if (sourceFilePath.StartsWith("/")) { sourceFilePath = sourceFilePath.Remove(0, 1); }
             if (f.fileInfo.GetType() == typeof(DirectoryInfo))
             {
                 sourceFilePath += "/";
