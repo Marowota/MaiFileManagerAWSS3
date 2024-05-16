@@ -300,7 +300,8 @@ namespace MaiFileManager.Classes
 
         internal async Task GenerateFileViewAsync(StorageService.GenerateFileViewMode mode = StorageService.GenerateFileViewMode.View, 
                                                     CancellationToken cancellationToken = default, 
-                                                    string searchValue = "")
+                                                    string searchValue = "",
+                                                    string currentDirectory = null)
         {
             currentBucket = awsStorageService.bucketName;
             awsStorageService = new StorageService(new AwsCredentials(), Preferences.Default.Get("Aws_Bucket_name", ""));
@@ -313,7 +314,7 @@ namespace MaiFileManager.Classes
 
             System.Diagnostics.Debug.WriteLine(MaiConstants.HomePath);
 
-            string awsPath = CurrentDirectoryInfo.CurrentDir.Remove(0,
+            string awsPath = (currentDirectory ?? CurrentDirectoryInfo.CurrentDir).Remove(0,
                 MaiConstants.HomePath.Length);
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -323,7 +324,7 @@ namespace MaiFileManager.Classes
             s3Objects = await awsStorageService.ListAllFileInPath(awsPath, mode, searchValue, cancellationToken);
             currentS3List = s3Objects;
 
-            DirectoryInfo currentDir = new DirectoryInfo(CurrentDirectoryInfo.CurrentDir);
+            DirectoryInfo currentDir = new DirectoryInfo(currentDirectory ?? CurrentDirectoryInfo.CurrentDir);
             DirectoryInfo parentDir = new DirectoryInfo(FileSystem.Current.CacheDirectory);
 
             System.Diagnostics.Debug.WriteLine(currentDir);
@@ -344,7 +345,7 @@ namespace MaiFileManager.Classes
             if (isParent)
             {
                 System.Diagnostics.Debug.WriteLine("IsParent");
-                currentDir = new DirectoryInfo(CurrentDirectoryInfo.CurrentDir);
+                currentDir = new DirectoryInfo(currentDirectory ?? CurrentDirectoryInfo.CurrentDir);
 
                 await Task.Run(() =>
                 {
@@ -430,19 +431,33 @@ namespace MaiFileManager.Classes
             {
                 await Task.Run(async () =>
                 {
+
+                    List<FileSystemInfoWithIcon> tempFileList = new List<FileSystemInfoWithIcon>();
+                    await GenerateFileViewAsync(StorageService.GenerateFileViewMode.Search, cancellationToken, currentDirectory:MaiConstants.HomePath);
                     CurrentFileList.Clear();
                     //file
                     if (File.Exists(FavouriteFilePath))
                     {
-                        List<string> favList = (await File.ReadAllLinesAsync(FavouriteFilePath)).ToList();
+                        List<string> favList = (await File.ReadAllLinesAsync(FavouriteFilePath)).ToList(); 
+                        for (int i = favList.Count - 1; i >= 0; i--)
+                        {
+                            if (favList[i].Split("[+]").Length < 2 || favList[i].Split("[+]")[0] != currentBucket)
+                            {
+                                favList.RemoveAt(i);
+                            }
+                            else
+                            {
+                                favList[i] = favList[i].Split("[+]")[1];
+                            }
+                        }
                         foreach (string fav in favList)
                         {
                             await Task.Run(async () =>
                             {
                                 if (File.Exists(fav))
                                 {
-                                    FileSystemInfo info = new FileInfo(fav);
-                                    CurrentFileList.Add(new FileSystemInfoWithIcon(info, MaiIcon.GetIcon(info.Extension), 40));
+                                    FileSystemInfo fileInfo = new FileInfo(fav);
+                                    tempFileList.Add(currentS3ListFileWIcon.Find(e => e.fileInfo.FullName == fileInfo.FullName));
                                 }
                                 else
                                 {
@@ -456,14 +471,25 @@ namespace MaiFileManager.Classes
                     if (File.Exists(FavouriteFolderPath))
                     {
                         List<string> favList = (await File.ReadAllLinesAsync(FavouriteFolderPath)).ToList();
+                        for (int i = favList.Count - 1; i >= 0; i--)
+                        {
+                            if (favList[i].Split("[+]").Length < 2 || favList[i].Split("[+]")[0] != currentBucket)
+                            {
+                                favList.RemoveAt(i);
+                            }
+                            else
+                            {
+                                favList[i] = favList[i].Split("[+]")[1];
+                            }
+                        }
                         foreach (string fav in favList)
                         {
                             await Task.Run(async () =>
                             {
                                 if (Directory.Exists(fav))
                                 {
-                                    FileSystemInfo info = new DirectoryInfo(fav);
-                                    CurrentFileList.Add(new FileSystemInfoWithIcon(info, "folder.png", 45));
+                                    FileSystemInfo fileInfo = new DirectoryInfo(fav);
+                                    tempFileList.Add(currentS3ListFileWIcon.Find(e => e.fileInfo.FullName == fileInfo.FullName));
                                 }
                                 else
                                 {
@@ -472,6 +498,14 @@ namespace MaiFileManager.Classes
                             });
                         }
                     }
+                    tempFileList = SortFileMode(tempFileList);
+
+                    foreach (FileSystemInfoWithIcon f in tempFileList)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        CurrentFileList.Add(f);
+                    }
+
                     if (IsSelectionMode)
                     {
                         foreach (FileSystemInfoWithIcon f in CurrentFileList)
@@ -573,7 +607,7 @@ namespace MaiFileManager.Classes
             FileSystemInfo selected = selectedWIcon.fileInfo;
             if (selected.GetType() == typeof(FileInfo))
             {
-                if (IsHomePage)
+                if (IsHomePage || IsFavouriteMode)
                 {
                     Page tmp = Shell.Current.CurrentPage;
                     CancellationTokenSource source = new CancellationTokenSource();
@@ -1353,34 +1387,35 @@ namespace MaiFileManager.Classes
         //1 Add 0 Remove
         private async Task FavouriteAR(FileSystemInfo f, int mode, List<string> oldFileList, List<string> oldFolderList)
         {
+            string bucketAndPath = currentBucket + "[+]" + f.FullName;
             await Task.Run(() =>
             {
                 if (f.GetType() == typeof(FileInfo))
                 {
                     if (mode == 1)
                     {
-                        if (!oldFileList.Exists(e => e == f.FullName))
+                        if (!oldFileList.Exists(e => e == bucketAndPath))
                         {
-                            oldFileList.Add(f.FullName);
+                            oldFileList.Add(bucketAndPath);
                         }
                     }
                     else if (mode == 0)
                     {
-                        oldFileList.Remove(f.FullName);
+                        oldFileList.Remove(bucketAndPath);
                     }
                 }
                 else if (f.GetType() == typeof(DirectoryInfo))
                 {
                     if (mode == 1)
                     {
-                        if (!oldFolderList.Exists(e => e == f.FullName))
+                        if (!oldFolderList.Exists(e => e == bucketAndPath))
                         {
-                            oldFolderList.Add(f.FullName);
+                            oldFolderList.Add(bucketAndPath);
                         }
                     }
                     else if (mode == 0)
                     {
-                        oldFolderList.Remove(f.FullName);
+                        oldFolderList.Remove(bucketAndPath);
                     }
                 }
             });
@@ -1388,6 +1423,7 @@ namespace MaiFileManager.Classes
         //0 file 1 folder
         private async Task FavouriteAR(string f, int type, int mode, List<string> oldFileList, List<string> oldFolderList)
         {
+            f = currentBucket + "[+]" + f;
             await Task.Run(() =>
             {
                 if (type == 0)
@@ -1489,7 +1525,7 @@ namespace MaiFileManager.Classes
             {
                 oldFolderList = (await File.ReadAllLinesAsync(FavouriteFolderPath)).ToList();
             }
-
+            f = currentBucket + "[+]" + f;
             if (oldFileList.Contains(f) || oldFolderList.Contains(f))
             {
                 return true;
