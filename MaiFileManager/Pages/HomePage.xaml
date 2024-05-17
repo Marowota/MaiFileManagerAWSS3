@@ -64,7 +64,9 @@
                          HorizontalOptions="CenterAndExpand"
                          VerticalOptions="CenterAndExpand"
                          Source="sort.png"
-                         Clicked="SortFileBy_Clicked"/>
+                         Clicked="SortFileBy_Clicked"
+                         BindingContext="{x:Reference homePage}"
+                         IsVisible="{Binding FileListObj.IsNotRecentMode}"/>
             <ImageButton x:Name="SearchFileFolder"
                          Grid.Column="4"
                          WidthRequest="30"
@@ -193,8 +195,25 @@
                            IsRunning="{Binding FileListObj.IsReloading}"
                            HeightRequest="50"
                            WidthRequest="50"/>
+        <Button Grid.Row="2" HorizontalOptions="End" VerticalOptions="End" Text="+" 
+                FontSize="Title"
+                FontAttributes="Bold"
+                TextColor="{AppThemeBinding Light={StaticResource Primary}, Dark={StaticResource White}}" 
+                BackgroundColor="{AppThemeBinding Light={StaticResource White}, Dark={StaticResource Black}}"
+                Margin="20,50"
+                BorderColor="{AppThemeBinding Light={StaticResource Gray950}, Dark={StaticResource Gray200}}"
+                BorderWidth="1"
+                WidthRequest="60"
+                HeightRequest="60"
+                BindingContext="{x:Reference homePage}"
+                IsVisible="{Binding FileListObj.IsHomePage}"
+                x:Name="AddFile"
+                Clicked="AddFile_Clicked"
+                ZIndex="2"
+                />
         <RefreshView Refreshing="RefreshView_Refreshing"
-                     Grid.Row="2">
+                     Grid.Row="2"
+                     ZIndex="1">
             <SwipeView SwipeStarted="SwipeView_SwipeStarted"
                        FlowDirection="LeftToRight"
                        x:Name="SwipeFileBox"

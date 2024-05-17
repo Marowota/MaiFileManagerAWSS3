@@ -66,6 +66,9 @@ namespace MaiFileManager.Classes
         private List<FileSystemInfoWithIcon> currentS3ListFileWIcon = new List<FileSystemInfoWithIcon>();
         public string currentBucket = "";
         CancellationTokenSource prevToken = null;
+        public string RecentFilePath { get; set; } = Path.Combine(FileSystem.Current.AppDataDirectory, "RecentFile.txt");
+        public bool IsRecentMode {get; set;} = false;
+        public bool IsNotRecentMode { get; set; } = true;
 
         public double OperatedPercent
         {
@@ -121,6 +124,13 @@ namespace MaiFileManager.Classes
             CurrentDirectoryInfo = new FileManager(type);
             if (type == 2)
             {
+                IsFavouriteMode = true;
+                IsNotFavouritePage = false;
+            }
+            if (type == 3)
+            {
+                IsRecentMode = true;
+                IsNotRecentMode = false;
                 IsFavouriteMode = true;
                 IsNotFavouritePage = false;
             }
@@ -314,10 +324,10 @@ namespace MaiFileManager.Classes
 
             System.Diagnostics.Debug.WriteLine(MaiConstants.HomePath);
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             string awsPath = (currentDirectory ?? CurrentDirectoryInfo.CurrentDir).Remove(0,
                 MaiConstants.HomePath.Length);
-
-            cancellationToken.ThrowIfCancellationRequested();
             if (awsPath.StartsWith("/")) { awsPath = awsPath.Remove(0, 1); }
             List<S3Object> s3Objects = new List<S3Object>(); 
             cancellationToken.ThrowIfCancellationRequested();
@@ -427,18 +437,72 @@ namespace MaiFileManager.Classes
             CancellationToken cancellationToken = loadFileToken.Token;
 
             IsReloading = true;
-            if (BackDeep == 0 && IsFavouriteMode)
+            if (BackDeep == 0 && IsRecentMode)
             {
                 await Task.Run(async () =>
                 {
 
                     List<FileSystemInfoWithIcon> tempFileList = new List<FileSystemInfoWithIcon>();
-                    await GenerateFileViewAsync(StorageService.GenerateFileViewMode.Search, cancellationToken, currentDirectory:MaiConstants.HomePath);
+                    await GenerateFileViewAsync(StorageService.GenerateFileViewMode.Search, cancellationToken, currentDirectory: MaiConstants.HomePath);
+                    CurrentFileList.Clear();
+                    //file
+                    if (File.Exists(RecentFilePath))
+                    {
+                        List<string> favList = (await File.ReadAllLinesAsync(RecentFilePath)).ToList();
+                        for (int i = favList.Count - 1; i >= 0; i--)
+                        {
+                            if (favList[i].Split("[+]").Length < 2 || favList[i].Split("[+]")[0] != currentBucket)
+                            {
+                                favList.RemoveAt(i);
+                            }
+                            else
+                            {
+                                favList[i] = favList[i].Split("[+]")[1];
+                            }
+                        }
+                        int cnt = 0;
+                        for (int i = favList.Count - 1; i >= 0; i--)
+                        {
+                            await Task.Run(async () =>
+                            {
+                                var fav = favList[i];
+                                if (File.Exists(fav) && (favList.Count - i + 1 < 30))
+                                {
+                                    FileSystemInfo fileInfo = new FileInfo(fav);
+                                    tempFileList.Add(currentS3ListFileWIcon.Find(e => e.fileInfo.FullName == fileInfo.FullName));
+                                }
+                                else
+                                {
+                                    await AddOrRemoveFavouriteAsync(0, true, null, fav, 0, RecentFilePath);
+                                }
+
+
+                            });
+                        }
+                    }
+
+                    foreach (FileSystemInfoWithIcon f in tempFileList)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        await Task.Run(() =>
+                        {
+                            CurrentFileList.Add(f);
+                        });
+                    }
+                });
+            }
+            else if (BackDeep == 0 && IsFavouriteMode)
+            {
+                await Task.Run(async () =>
+                {
+
+                    List<FileSystemInfoWithIcon> tempFileList = new List<FileSystemInfoWithIcon>();
+                    await GenerateFileViewAsync(StorageService.GenerateFileViewMode.Search, cancellationToken, currentDirectory: MaiConstants.HomePath);
                     CurrentFileList.Clear();
                     //file
                     if (File.Exists(FavouriteFilePath))
                     {
-                        List<string> favList = (await File.ReadAllLinesAsync(FavouriteFilePath)).ToList(); 
+                        List<string> favList = (await File.ReadAllLinesAsync(FavouriteFilePath)).ToList();
                         for (int i = favList.Count - 1; i >= 0; i--)
                         {
                             if (favList[i].Split("[+]").Length < 2 || favList[i].Split("[+]")[0] != currentBucket)
@@ -632,6 +696,7 @@ namespace MaiFileManager.Classes
                 {
                     if (selected.Exists) await Launcher.OpenAsync(new OpenFileRequest("Open File", new ReadOnlyFile(selected.FullName)));
                 }
+                await AddOrRemoveFavouriteAsync(1, isReloadOff: true , paths: selected.FullName, type: 0, favFilePath: RecentFilePath);
                 return 0;
             }
             else if (selected.GetType() == typeof(DirectoryInfo))
@@ -1432,6 +1497,7 @@ namespace MaiFileManager.Classes
                     {
                         if (!oldFileList.Exists(e => e == f))
                         {
+                            oldFileList.Remove(f);
                             oldFileList.Add(f);
                         }
                     }
@@ -1446,6 +1512,7 @@ namespace MaiFileManager.Classes
                     {
                         if (!oldFolderList.Exists(e => e == f))
                         {
+                            oldFileList.Remove(f);
                             oldFolderList.Add(f);
                         }
                     }
@@ -1456,26 +1523,30 @@ namespace MaiFileManager.Classes
                 }
             });
         }
-        internal async Task AddOrRemoveFavouriteAsync(int mode, bool isReloadOff = false, FileSystemInfo path = null, string paths = null, int type = -1)
+        internal async Task AddOrRemoveFavouriteAsync(int mode, bool isReloadOff = false, FileSystemInfo path = null, string paths = null, int type = -1, 
+                                                      string favFilePath = null, string favFolderPath = null)
         {
+            favFilePath = favFilePath ?? FavouriteFilePath;
+            favFolderPath = favFolderPath ?? FavouriteFolderPath;
+
             List<string> oldFileList = new List<string>();
             List<string> oldFolderList = new List<string>();
-            if (!File.Exists(FavouriteFilePath))
+            if (!File.Exists(favFilePath))
             {
                 oldFileList.Clear();
             }
             else
             {
-                oldFileList = (await File.ReadAllLinesAsync(FavouriteFilePath)).ToList();
+                oldFileList = (await File.ReadAllLinesAsync(favFilePath)).ToList();
             }
 
-            if (!File.Exists(FavouriteFolderPath))
+            if (!File.Exists(favFolderPath))
             {
                 oldFolderList.Clear();
             }
             else
             {
-                oldFolderList = (await File.ReadAllLinesAsync(FavouriteFolderPath)).ToList();
+                oldFolderList = (await File.ReadAllLinesAsync(favFolderPath)).ToList();
             }
 
             if (path == null && paths == null)
@@ -1494,36 +1565,38 @@ namespace MaiFileManager.Classes
             }
             else if (paths != null)
             {
-                await FavouriteAR(paths, type, mode, oldFolderList, oldFolderList);
+                await FavouriteAR(paths, type, mode, oldFileList, oldFolderList);
             }
 
-            await File.WriteAllLinesAsync(FavouriteFilePath, oldFileList);
-            await File.WriteAllLinesAsync(FavouriteFolderPath, oldFolderList);
+            await File.WriteAllLinesAsync(favFilePath, oldFileList);
+            await File.WriteAllLinesAsync(favFolderPath, oldFolderList);
             if (mode == 0 && (!isReloadOff))
             {
                 await UpdateFileListAsync();
             }
         }
-        private async Task<bool> IsInFavouriteAsync(string f)
+        private async Task<bool> IsInFavouriteAsync(string f, string favFilePath = null, string favFolderPath = null)
         {
+            favFilePath = favFilePath ?? FavouriteFilePath;
+            favFolderPath = favFolderPath ?? FavouriteFolderPath;
             List<string> oldFileList = new List<string>();
             List<string> oldFolderList = new List<string>();
-            if (!File.Exists(FavouriteFilePath))
+            if (!File.Exists(favFilePath))
             {
                 oldFileList.Clear();
             }
             else
             {
-                oldFileList = (await File.ReadAllLinesAsync(FavouriteFilePath)).ToList();
+                oldFileList = (await File.ReadAllLinesAsync(favFilePath)).ToList();
             }
 
-            if (!File.Exists(FavouriteFolderPath))
+            if (!File.Exists(favFolderPath))
             {
                 oldFolderList.Clear();
             }
             else
             {
-                oldFolderList = (await File.ReadAllLinesAsync(FavouriteFolderPath)).ToList();
+                oldFolderList = (await File.ReadAllLinesAsync(favFolderPath)).ToList();
             }
             f = currentBucket + "[+]" + f;
             if (oldFileList.Contains(f) || oldFolderList.Contains(f))
@@ -1532,5 +1605,21 @@ namespace MaiFileManager.Classes
             }
             return false;
         }
+        internal async Task UploadFile()
+        {
+            string awsPath = CurrentDirectoryInfo.CurrentDir.Remove(0, MaiConstants.HomePath.Length);
+            if (awsPath.StartsWith("/")) { awsPath = awsPath.Remove(0, 1); }
+            var result = await FilePicker.Default.PickMultipleAsync();
+            if (result == null)
+            {
+                return;
+            }
+            foreach(FileResult fr in result)
+            {
+                await awsStorageService.UploadFileAsync(fr.FileName, fr.FullPath, awsPath);
+            }
+            await UpdateFileListAsync();
+        }
+
     }
 }

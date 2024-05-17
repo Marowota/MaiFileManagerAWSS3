@@ -234,27 +234,54 @@ namespace MaiFileManager.Classes.Aws
 
         internal async Task<bool> UploadFileAsync(string objectName, string filePath, string savedPath)
         {
-            if (await CheckAndCreateBucket(bucketName) == false)
+            try
             {
+                if (await CheckAndCreateBucket(bucketName) == false)
+                {
+                    return false;
+                }
+                var request = new PutObjectRequest
+                {
+                    BucketName = bucketName,
+                    Key = savedPath + "/" + objectName,
+                    FilePath = filePath,
+
+                };
+
+                var response = await client.PutObjectAsync(request);
+                if (response.HttpStatusCode == System.Net.HttpStatusCode.OK)
+                {
+                    Debug.WriteLine($"Successfully uploaded {objectName} to {bucketName}.");
+                    return true;
+                }
+                else
+                {
+                    Debug.WriteLine($"Could not upload {objectName} to {bucketName}.");
+                    return false;
+                }
+            }
+            catch (AmazonS3Exception ex)
+            {
+                Debug.WriteLine($"Error encountered on server. Message:'{ex.Message}' when deleting an object.");
+                await SendNotification("Error", $"AWS S3 Message:'{ex.Message}'", "OK");
                 return false;
             }
-            var request = new PutObjectRequest
+            catch (AmazonServiceException ex)
             {
-                BucketName = bucketName,
-                Key = savedPath + "/" + objectName,
-                FilePath = filePath,
-                
-            };
-
-            var response = await client.PutObjectAsync(request);
-            if (response.HttpStatusCode == System.Net.HttpStatusCode.OK)
-            {
-                Debug.WriteLine($"Successfully uploaded {objectName} to {bucketName}.");
-                return true;
+                Debug.WriteLine($"Error encountered on server. Message:'{ex.Message}' when deleting an object.");
+                await SendNotification("Error", $"AWS Message:'{ex.Message}'", "OK");
+                return false;
             }
-            else
+            catch (WebException ex)
             {
-                Debug.WriteLine($"Could not upload {objectName} to {bucketName}.");
+                Debug.WriteLine($"Error encountered on server. Message:'{ex.Message}' when checking bucket.");
+                await SendNotification("Error", "Can't connect to S3 Service, check your internet connection", "OK");
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error encountered on server. Message:'{ex.Message}' when deleting an object.");
+                await SendNotification("Error", $"Application Message:'{ex.Message}'", "OK");
                 return false;
             }
         }

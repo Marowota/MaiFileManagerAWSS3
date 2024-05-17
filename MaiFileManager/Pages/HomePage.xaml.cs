@@ -22,6 +22,10 @@ public partial class HomePage : ContentPage
     {
         get
         {
+            if (FileListObj.IsRecentMode)
+            {
+                return false;
+            }
             if (IsFavouriteVisible)
             {
                 if (FileListObj.IsNotFavouritePage)
@@ -44,6 +48,10 @@ public partial class HomePage : ContentPage
     {
         get
         {
+            if (FileListObj.IsRecentMode)
+            {
+                return false;
+            }
             if (IsFavouriteVisible)
             {
                 if (FileListObj.IsNotFavouritePage)
@@ -443,4 +451,8 @@ public partial class HomePage : ContentPage
         }
     }
 
+    private async void AddFile_Clicked(object sender, EventArgs e)
+    {
+        await FileListObj.UploadFile();
+    }
 }

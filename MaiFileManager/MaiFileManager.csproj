@@ -76,6 +76,7 @@
 	  <None Remove="Resources\Images\move.png" />
 	  <None Remove="Resources\Images\newfolder.png" />
 	  <None Remove="Resources\Images\paste.png" />
+	  <None Remove="Resources\Images\recent.png" />
 	  <None Remove="Resources\Images\searchfile.png" />
 	  <None Remove="Resources\Images\settings.png" />
 	  <None Remove="Resources\Images\sfolder.png" />

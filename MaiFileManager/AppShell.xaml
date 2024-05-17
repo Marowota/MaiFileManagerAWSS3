@@ -5,6 +5,18 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:pages="clr-namespace:MaiFileManager.Pages">
     <TabBar>
+        <ShellContent Icon="recent.png"
+                      Title="Recent">
+            <ShellContent.ContentTemplate>
+                <DataTemplate>
+                    <pages:HomePage>
+                        <x:Arguments>
+                            <x:Int32>3</x:Int32>
+                        </x:Arguments>
+                    </pages:HomePage>
+                </DataTemplate>
+            </ShellContent.ContentTemplate>
+        </ShellContent>
         <ShellContent x:Name="Home"
                       Icon="sfolder.png"
                       Title="Files"
@@ -16,18 +28,6 @@
                     <pages:HomePage>
                         <x:Arguments>
                             <x:Int32>2</x:Int32>
-                        </x:Arguments>
-                    </pages:HomePage>
-                </DataTemplate>
-            </ShellContent.ContentTemplate>
-        </ShellContent>
-        <ShellContent Icon="download.png"
-                      Title="Downloaded">
-            <ShellContent.ContentTemplate>
-                <DataTemplate>
-                    <pages:HomePage>
-                        <x:Arguments>
-                            <x:Int32>1</x:Int32>
                         </x:Arguments>
                     </pages:HomePage>
                 </DataTemplate>

@@ -41,6 +41,9 @@ namespace MaiFileManager.Services
                 case 2:
                     currentDir = "Favourite";
                     break;
+                case 3:
+                    currentDir = "Recent";
+                    break;
             }
         }
         public partial ObservableCollection<FileSystemInfo> GetListFile()
