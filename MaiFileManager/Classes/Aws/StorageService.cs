@@ -243,7 +243,7 @@ namespace MaiFileManager.Classes.Aws
                 var request = new PutObjectRequest
                 {
                     BucketName = bucketName,
-                    Key = savedPath + "/" + objectName,
+                    Key = savedPath + objectName,
                     FilePath = filePath,
 
                 };

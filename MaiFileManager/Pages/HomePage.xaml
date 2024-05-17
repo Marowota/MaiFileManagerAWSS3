@@ -200,7 +200,7 @@
                 FontAttributes="Bold"
                 TextColor="{AppThemeBinding Light={StaticResource Primary}, Dark={StaticResource White}}" 
                 BackgroundColor="{AppThemeBinding Light={StaticResource White}, Dark={StaticResource Black}}"
-                Margin="20,50"
+                Margin="25,40"
                 BorderColor="{AppThemeBinding Light={StaticResource Gray950}, Dark={StaticResource Gray200}}"
                 BorderWidth="1"
                 WidthRequest="60"

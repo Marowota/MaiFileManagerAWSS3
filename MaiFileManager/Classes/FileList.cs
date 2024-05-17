@@ -1609,6 +1609,7 @@ namespace MaiFileManager.Classes
         {
             string awsPath = CurrentDirectoryInfo.CurrentDir.Remove(0, MaiConstants.HomePath.Length);
             if (awsPath.StartsWith("/")) { awsPath = awsPath.Remove(0, 1); }
+            if (awsPath.Length > 0) { awsPath += "/";}
             var result = await FilePicker.Default.PickMultipleAsync();
             if (result == null)
             {

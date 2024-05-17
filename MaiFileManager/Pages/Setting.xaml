@@ -72,6 +72,7 @@
                                 </VerticalStackLayout>
                                 <Button x:Name="Signout" Grid.Column="1" 
                                     Text="Sign out"  Margin="10,0" Clicked="Signout_Clicked" BorderWidth="1" 
+                                    BorderColor="{AppThemeBinding Light={StaticResource Gray950}, Dark={StaticResource Gray200}}"
                                     TextColor="{AppThemeBinding Light={StaticResource Primary}, Dark={StaticResource White}}" 
                                     Background="Transparent"
                                     />
