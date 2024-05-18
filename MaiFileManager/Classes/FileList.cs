@@ -61,7 +61,7 @@ namespace MaiFileManager.Classes
         private string operatedStatusString = "";
         public Page NavigatedPage = null;
         public bool IsHomePage { get; set; } = false;
-        private StorageService awsStorageService = new StorageService(new AwsCredentials(), Preferences.Default.Get("Aws_Bucket_name", ""));
+        internal StorageService awsStorageService = new StorageService(new AwsCredentials(), Preferences.Default.Get("Aws_Bucket_name", ""));
         private List<S3Object> currentS3List = new List<S3Object>();
         private List<FileSystemInfoWithIcon> currentS3ListFileWIcon = new List<FileSystemInfoWithIcon>();
         public string currentBucket = "";
@@ -505,6 +505,7 @@ namespace MaiFileManager.Classes
                         List<string> favList = (await File.ReadAllLinesAsync(FavouriteFilePath)).ToList();
                         for (int i = favList.Count - 1; i >= 0; i--)
                         {
+                            System.Diagnostics.Debug.WriteLine(currentBucket);
                             if (favList[i].Split("[+]").Length < 2 || favList[i].Split("[+]")[0] != currentBucket)
                             {
                                 favList.RemoveAt(i);

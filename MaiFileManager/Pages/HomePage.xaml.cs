@@ -4,6 +4,7 @@ using System.Linq;
 using Android.OS;
 using AndroidX.Emoji2.Text.FlatBuffer;
 using MaiFileManager.Classes;
+using MaiFileManager.Classes.Aws;
 using MaiFileManager.Services;
 using Org.W3c.Dom.LS;
 
@@ -322,10 +323,14 @@ public partial class HomePage : ContentPage
     {
         if (!FirstLoad)
         {
-            if (Preferences.Default.Get("Aws_Bucket_name", "") != FileListObj.currentBucket)
+            if (Preferences.Default.Get("Aws_Bucket_name", "") != FileListObj.awsStorageService.bucketName)
             {
                 await Task.Run(() =>
                 {
+                    FileListObj.awsStorageService = new StorageService(
+                                                    new AwsCredentials(), Preferences.Default.Get("Aws_Bucket_name", ""));
+                    if (!(FileListObj.CurrentDirectoryInfo.CurrentDir == "Favourite") &&
+                        !(FileListObj.CurrentDirectoryInfo.CurrentDir == "Recent")) 
                     FileListObj.CurrentDirectoryInfo.CurrentDir = MaiConstants.HomePath;
                     FileListObj.UpdateBackDeep(-FileListObj.BackDeep);
                     BackButton.IsVisible = false;

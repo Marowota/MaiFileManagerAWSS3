@@ -28,9 +28,9 @@ namespace MaiFileManager.Services
         {
             get
             {
-                if (currentDir == "Favourite") return "Favourite";
-                if (currentDir == MaiConstants.HomePath)
-                    return Preferences.Default.Get("Aws_Bucket_name", "");
+                if (currentDir == "Favourite" || currentDir == "Recent") return currentDir;
+                else if (currentDir == MaiConstants.HomePath)
+                     return Preferences.Default.Get("Aws_Bucket_name", "");
                 return Path.GetFileName(CurrentDir);
             }
         }
